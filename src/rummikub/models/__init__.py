@@ -13,17 +13,7 @@ from .actions import Turn, Action, PlayTilesAction, DrawAction
 # Base classes and utilities
 from .base import generate_uuid, to_dict, to_json
 
-# Validation utilities
-from .validators import (
-    is_valid_group,
-    is_valid_run,
-    assign_jokers_in_group,
-    assign_jokers_in_run,
-    meld_value,
-    initial_meld_total,
-    validate_meld,
-    validate_tile_ownership
-)
+# Validation utilities are now integrated into model classes
 
 # Exceptions
 from .exceptions import (
@@ -60,16 +50,6 @@ __all__ = [
     "generate_uuid",
     "to_dict",
     "to_json",
-    
-    # Validation utilities
-    "is_valid_group",
-    "is_valid_run",
-    "assign_jokers_in_group",
-    "assign_jokers_in_run",
-    "meld_value",
-    "initial_meld_total",
-    "validate_meld",
-    "validate_tile_ownership",
     
     # Exceptions
     "RummikubError",
