@@ -4,6 +4,8 @@ Python-based Rummikub game with Redis backend, FastAPI API, and pytest tests. De
 
 ## Status
 
+[![CI](https://github.com/lstasi/rummikub-game/workflows/CI/badge.svg)](https://github.com/lstasi/rummikub-game/actions/workflows/ci.yml)
+
 Completed:
 - Copilot instructions with strict workflow (`COPILOT_INSTRUCTIONS.md`)
 - Base project scaffolding (`src/`, `tests/`, `doc/`, `pyproject.toml`, `pytest.ini`)
@@ -32,6 +34,29 @@ Pending (see `TODO.md` for the full list):
 - Python >= 3.11, Pydantic, FastAPI, Redis
 - pytest for testing
 - Docker + docker-compose for local runs
+- GitHub Actions for CI/CD
+
+## Development
+
+### Running Tests Locally
+```bash
+# Install dependencies
+pip install -e .[dev]
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=src --cov-report=term-missing
+```
+
+### Continuous Integration
+The project automatically runs tests on:
+- Push to main branch
+- Pull requests to main branch  
+- Python versions: 3.11, 3.12
+
+See `.github/workflows/ci.yml` for the complete CI configuration.
 
 ## Contributing Workflow
 
