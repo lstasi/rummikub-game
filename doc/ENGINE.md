@@ -18,7 +18,6 @@ The Game Engine is responsible for enforcing Rummikub game rules and managing ga
 ### Move Validation and Execution
 - Validate and execute tile placements on the board
 - Initial meld validation (>= 30 points requirement)
-- Joker substitution and retrieval logic
 - Ensure all board combinations remain valid after moves
 
 ### Rule Enforcement
