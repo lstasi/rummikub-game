@@ -23,7 +23,21 @@ from .exceptions import (
     InvalidNumberError,
     InvalidMeldError,
     JokerAssignmentError,
-    GameStateError
+    GameStateError,
+    # Engine-specific exceptions
+    GameNotFoundError,
+    GameFullError,
+    GameNotStartedError,
+    GameFinishedError,
+    NotPlayersTurnError,
+    PlayerNotInGameError,
+    InitialMeldNotMetError,
+    InvalidMoveError,
+    TileNotOwnedError,
+    PoolEmptyError,
+    InvalidBoardStateError,
+    JokerRetrievalError,
+    JokerNotReusedError
 )
 
 __all__ = [
@@ -58,5 +72,19 @@ __all__ = [
     "InvalidNumberError",
     "InvalidMeldError",
     "JokerAssignmentError",
-    "GameStateError"
+    "GameStateError",
+    # Engine-specific exceptions
+    "GameNotFoundError",
+    "GameFullError",
+    "GameNotStartedError",
+    "GameFinishedError",
+    "NotPlayersTurnError",
+    "PlayerNotInGameError",
+    "InitialMeldNotMetError",
+    "InvalidMoveError",
+    "TileNotOwnedError",
+    "PoolEmptyError",
+    "InvalidBoardStateError",
+    "JokerRetrievalError",
+    "JokerNotReusedError"
 ]
