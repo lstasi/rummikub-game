@@ -4,7 +4,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
 
 - [x] Implement models package
   - Create `src/rummikub/models/` with Pydantic models or dataclasses implementing: Color, Tile, Joker, Meld (Group/Run), Rack, Pool, Board, Player, GameState, Turn, Move. Include validation and serialization helpers.
-- [ ] Unit tests for models
+- [x] Unit tests for models
   - Add tests under `tests/models/` covering valid/invalid groups/runs, joker handling, initial meld scoring, and serialization round-trips.
 - [ ] Define game engine
   - Update `doc/ENGINE.md` with responsibilities, API contracts (setup, turn flow, play/rearrange validation, joker retrieval, scoring, end-of-game) and error taxonomy.
