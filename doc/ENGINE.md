@@ -109,7 +109,7 @@ class GameEngine:
 
 ### Turn Flow
 1. **Player Action Phase:**
-   - `play_tiles()` OR `rearrange_board()` OR `draw_tile()`
+   - `execute_play_action()` OR `execute_draw_action()`
    - Validate move according to rules
    - Update game state
    
