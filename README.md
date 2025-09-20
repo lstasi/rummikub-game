@@ -8,9 +8,10 @@ Completed:
 - Copilot instructions with strict workflow (`COPILOT_INSTRUCTIONS.md`)
 - Base project scaffolding (`src/`, `tests/`, `doc/`, `pyproject.toml`, `pytest.ini`)
 - Domain model definitions documented (`doc/MODELS.md`)
+- Models package implementation (`src/rummikub/models/`) with full Pydantic validation
 
 Pending (see `TODO.md` for the full list):
-- Implement models package + unit tests
+- Unit tests for models
 - Define and implement engine + tests
 - Define and implement service (Redis) + tests
 - Define and implement API (FastAPI) + tests
