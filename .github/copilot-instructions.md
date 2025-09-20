@@ -174,6 +174,36 @@ Edge cases to cover in design and tests:
 - Tests: `pytest` PASS locally
 - Containers: if touched, build succeeds and services start locally
 
+## Python Code Testing Best Practices
+
+When testing Python code during development, use the provided `scripts/pyrun.sh` utility instead of complex inline commands:
+
+**Instead of complex inline Python:**
+```bash
+cd /workspace/lab/rummikub-game && python -c "
+from src.rummikub.models import Color, NumberedTile
+tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+print(f'Created: {tile}')
+"
+```
+
+**Use the pyrun script:**
+```bash
+./scripts/pyrun.sh "
+from rummikub.models import Color, NumberedTile, TileInstance
+tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+print(f'Created: {tile}')
+print(f'JSON: {tile.model_dump_json(indent=2)}')
+"
+```
+
+**Script usage patterns:**
+- Quick tests: `./scripts/pyrun.sh "from rummikub.models import Color; print(list(Color))"`
+- Interactive exploration: `./scripts/pyrun.sh -i`
+- Run test files: `./scripts/pyrun.sh -f path/to/test.py`
+
+This approach is cleaner, handles PYTHONPATH automatically, and avoids shell escaping issues.
+
 ## Proposal template (copy into task description)
 
 - Summary: <what and why>
