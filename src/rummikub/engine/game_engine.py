@@ -25,67 +25,122 @@ class GameEngine:
     easy to test and reason about.
     """
 
-    def create_game(self, game_id: UUID, num_players: int) -> GameState:
+    def create_game(self, num_players: int) -> GameState:
         """Initialize a new game with specified number of players (2-4).
         
         Args:
-            game_id: Unique identifier for the game
-            num_players: Number of players for this game (must be 2-4)
+            num_players: Number of players for this game (must be 2-4, but games can accommodate up to 4)
             
         Returns:
-            New GameState with WAITING_FOR_PLAYERS status
+            New GameState with WAITING_FOR_PLAYERS status and initialized pool
             
         Raises:
             GameStateError: If num_players is not between 2 and 4
         """
-        return GameState.create_new_game(game_id, num_players)
-
-    def add_player(self, game_state: GameState, player_id: str, player_name: str = None) -> GameState:
-        """Add a player to the game. Deals tiles and starts game when full.
+        from uuid import uuid4
+        from ..models.game import Pool
         
-        Args:
-            game_state: Current game state
-            player_id: Unique identifier for the player
-            player_name: Optional display name for the player
-            
-        Returns:
-            Updated GameState with new player added
-            
-        Raises:
-            GameFullError: If game already has maximum players
-            GameNotStartedError: If game is not in waiting_for_players status
-            InvalidMoveError: If player is already in the game
-        """
-        if game_state.status != GameStatus.WAITING_FOR_PLAYERS:
-            raise GameNotStartedError("Can only add players to games waiting for players")
-            
-        if len(game_state.players) >= 4:
-            raise GameFullError("Game already has maximum 4 players")
-            
-        # Check if player already exists
-        for existing_player in game_state.players:
-            if existing_player.id == player_id:
-                raise InvalidMoveError(f"Player {player_id} already in game")
+        # Validate num_players but don't strictly enforce it - allow flexibility
+        if not (2 <= num_players <= 4):
+            raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
         
-        # Create new player
-        new_player = Player(id=player_id, name=player_name or player_id)
+        # Generate a unique game ID
+        game_id = uuid4()
         
-        # Add player to game
-        new_players = game_state.players + [new_player]
-        new_game_state = GameState(
+        # Create the base game state
+        game_state = GameState.create_new_game(game_id, num_players)
+        
+        # Initialize the complete tile pool
+        pool, tile_instances = Pool.create_full_pool()
+        
+        # Return game state with initialized pool
+        return GameState(
             game_id=game_state.game_id,
-            players=new_players,
-            pool=game_state.pool,
+            players=game_state.players,
+            pool=pool,
             board=game_state.board,
             current_player_index=game_state.current_player_index,
             status=game_state.status,
             created_at=game_state.created_at,
             updated_at=game_state.updated_at
         )
+
+    def join_game(self, game_state: GameState, player_name: str) -> GameState:
+        """Join a player to the game and deal tiles from pool.
         
-        # Don't auto-start the game, let the caller decide when to start
-        # This allows adding multiple players before starting
-        return new_game_state
+        Args:
+            game_state: Current game state
+            player_name: Display name for the player (used as ID if unique)
+            
+        Returns:
+            Updated GameState with new player added and tiles dealt
+            
+        Raises:
+            GameFullError: If game already has maximum players
+            GameNotStartedError: If game is not in waiting_for_players status
+            InvalidMoveError: If player name already exists in the game
+        """
+        if game_state.status != GameStatus.WAITING_FOR_PLAYERS:
+            raise GameNotStartedError("Can only join games waiting for players")
+            
+        if len(game_state.players) >= 4:
+            raise GameFullError("Game already has maximum 4 players")
+        
+        # Generate a unique player ID based on name    
+        player_id = player_name.lower().replace(' ', '_')
+        
+        # Check if player with this name already exists
+        for existing_player in game_state.players:
+            if existing_player.id == player_id or existing_player.name == player_name:
+                raise InvalidMoveError(f"Player with name '{player_name}' already in game")
+        
+        # Deal 14 tiles from pool for this player
+        import random
+        available_tiles = list(game_state.pool.tile_ids)
+        
+        if len(available_tiles) < 14:
+            raise PoolEmptyError("Not enough tiles in pool to deal to new player")
+        
+        # Randomly select 14 tiles for the player
+        random.shuffle(available_tiles)
+        player_tiles = available_tiles[:14]
+        remaining_tiles = available_tiles[14:]
+        
+        # Create player with dealt tiles
+        from ..models.game import Rack
+        player_rack = Rack(tile_ids=player_tiles)
+        new_player = Player(id=player_id, name=player_name, rack=player_rack)
+        
+        # Update pool with remaining tiles
+        updated_pool = type(game_state.pool)(tile_ids=remaining_tiles)
+        
+        # Add player to game
+        updated_players = game_state.players + [new_player]
+        
+        return GameState(
+            game_id=game_state.game_id,
+            players=updated_players,
+            pool=updated_pool,
+            board=game_state.board,
+            current_player_index=game_state.current_player_index,
+            status=game_state.status,
+            created_at=game_state.created_at,
+            updated_at=game_state.updated_at
+        )
+
+    # Backward compatibility method (deprecated)
+    def add_player(self, game_state: GameState, player_id: str, player_name: str = None) -> GameState:
+        """Deprecated: Use join_game() instead. Add a player to the game.
+        
+        Args:
+            game_state: Current game state
+            player_id: Unique identifier for the player (ignored, name is used)
+            player_name: Display name for the player
+            
+        Returns:
+            Updated GameState with new player added
+        """
+        return self.join_game(game_state, player_name or player_id)
     
     def start_game(self, game_state: GameState) -> GameState:
         """Explicitly start the game after all players are added.
@@ -521,53 +576,20 @@ class GameEngine:
         return scores
 
     def _start_game(self, game_state: GameState) -> GameState:
-        """Start the game by dealing tiles to all players.
+        """Start the game - players already have tiles dealt when they joined.
         
         Args:
-            game_state: Game state with all players added
+            game_state: Game state with all players added and tiles dealt
             
         Returns:
-            Updated GameState with tiles dealt and status IN_PROGRESS
+            Updated GameState with status IN_PROGRESS
         """
-        # Full implementation of game start:
-        from ..models.game import Pool
-        import random
-        
-        # 1. Create complete tile pool
-        pool, tile_instances = Pool.create_full_pool()
-        
-        # Shuffle the tiles
-        pool_tiles = list(pool.tile_ids)
-        random.shuffle(pool_tiles)
-        
-        # 2. Deal 14 tiles to each player
-        updated_players = []
-        tiles_dealt = 0
-        
-        for player in game_state.players:
-            # Deal 14 tiles to this player
-            player_tiles = pool_tiles[tiles_dealt:tiles_dealt + 14]
-            tiles_dealt += 14
-            
-            # Update player rack with dealt tiles
-            updated_rack = type(player.rack)(tile_ids=player_tiles)
-            updated_player = type(player)(
-                id=player.id,
-                name=player.name,
-                initial_meld_met=player.initial_meld_met,
-                rack=updated_rack
-            )
-            updated_players.append(updated_player)
-        
-        # 3. Update pool by removing dealt tiles
-        remaining_tiles = pool_tiles[tiles_dealt:]
-        updated_pool = Pool(tile_ids=remaining_tiles)
-        
-        # 4. Change status to IN_PROGRESS
+        # Since pool is initialized at game creation and tiles are dealt when players join,
+        # we just need to change the status to IN_PROGRESS
         return GameState(
             game_id=game_state.game_id,
-            players=updated_players,
-            pool=updated_pool,
+            players=game_state.players,
+            pool=game_state.pool,
             board=game_state.board,
             current_player_index=0,  # First player starts
             status=GameStatus.IN_PROGRESS,
