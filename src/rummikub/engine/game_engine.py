@@ -13,8 +13,10 @@ from ..models import (
     GameNotFoundError, GameFullError, GameNotStartedError, GameFinishedError,
     NotPlayersTurnError, PlayerNotInGameError, InitialMeldNotMetError,
     InvalidMoveError, TileNotOwnedError, PoolEmptyError, InvalidBoardStateError,
-    JokerRetrievalError, JokerNotReusedError
+    JokerRetrievalError, JokerNotReusedError, GameStateError
 )
+from .game_rules import GameRules
+from .game_actions import GameActions
 
 
 class GameEngine:
@@ -86,12 +88,13 @@ class GameEngine:
         if len(game_state.players) >= 4:
             raise GameFullError("Game already has maximum 4 players")
         
-        # Generate a unique player ID based on name    
-        player_id = player_name.lower().replace(' ', '_')
+        # Generate a unique player ID using UUID
+        from uuid import uuid4
+        player_id = str(uuid4())
         
-        # Check if player with this name already exists
+        # Check if player with this name already exists (by name, not ID)
         for existing_player in game_state.players:
-            if existing_player.id == player_id or existing_player.name == player_name:
+            if existing_player.name == player_name:
                 raise InvalidMoveError(f"Player with name '{player_name}' already in game")
         
         # Deal 14 tiles from pool for this player
@@ -127,20 +130,6 @@ class GameEngine:
             created_at=game_state.created_at,
             updated_at=game_state.updated_at
         )
-
-    # Backward compatibility method (deprecated)
-    def add_player(self, game_state: GameState, player_id: str, player_name: str = None) -> GameState:
-        """Deprecated: Use join_game() instead. Add a player to the game.
-        
-        Args:
-            game_state: Current game state
-            player_id: Unique identifier for the player (ignored, name is used)
-            player_name: Display name for the player
-            
-        Returns:
-            Updated GameState with new player added
-        """
-        return self.join_game(game_state, player_name or player_id)
     
     def start_game(self, game_state: GameState) -> GameState:
         """Explicitly start the game after all players are added.
@@ -206,14 +195,7 @@ class GameEngine:
         Returns:
             True if it's the player's turn and game is active
         """
-        if game_state.status != GameStatus.IN_PROGRESS:
-            return False
-            
-        try:
-            current_player = self.get_current_player(game_state)
-            return current_player == player_id
-        except (GameNotStartedError, GameFinishedError):
-            return False
+        return GameActions._can_player_act(game_state, player_id)
 
     def advance_turn(self, game_state: GameState) -> GameState:
         """Move to the next player's turn.
@@ -223,29 +205,8 @@ class GameEngine:
             
         Returns:
             Updated GameState with next player's turn
-            
-        Raises:
-            GameNotStartedError: If game hasn't started yet
-            GameFinishedError: If game is already finished
         """
-        if game_state.status != GameStatus.IN_PROGRESS:
-            if game_state.status == GameStatus.WAITING_FOR_PLAYERS:
-                raise GameNotStartedError("Game hasn't started yet")
-            else:
-                raise GameFinishedError("Game is already finished")
-                
-        next_index = (game_state.current_player_index + 1) % len(game_state.players)
-        
-        return GameState(
-            game_id=game_state.game_id,
-            players=game_state.players,
-            pool=game_state.pool,
-            board=game_state.board,
-            current_player_index=next_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        return GameActions.advance_turn(game_state)
 
     def execute_play_action(self, game_state: GameState, player_id: str, action: PlayTilesAction) -> GameState:
         """Execute tile play action (placement and/or rearrangement).
@@ -257,136 +218,8 @@ class GameEngine:
             
         Returns:
             Updated GameState after successful play
-            
-        Raises:
-            NotPlayersTurnError: If it's not the player's turn
-            PlayerNotInGameError: If player is not in the game
-            TileNotOwnedError: If player doesn't own tiles being played
-            InitialMeldNotMetError: If initial meld requirement not met
-            InvalidBoardStateError: If resulting board state is invalid
         """
-        # Validate player's turn
-        if not self.can_player_act(game_state, player_id):
-            if game_state.status != GameStatus.IN_PROGRESS:
-                raise GameNotStartedError("Game is not in progress")
-            raise NotPlayersTurnError(f"It's not {player_id}'s turn")
-        
-        # Get player (validates player exists in game)
-        player = self._get_player(game_state, player_id)
-        
-        # Full implementation of play action validation and execution:
-        
-        # 1. Collect all tiles being played from the new melds
-        all_played_tiles = set()
-        for meld in action.melds:
-            all_played_tiles.update(meld.tiles)
-        
-        # Get all tiles currently on the board
-        current_board_tiles = set()
-        for meld in game_state.board.melds:
-            current_board_tiles.update(meld.tiles)
-        
-        # Determine which tiles are newly played (not already on board)
-        newly_played_tiles = all_played_tiles - current_board_tiles
-        
-        # 2. Validate tile ownership - player must own all newly played tiles
-        player_tiles = set(player.rack.tile_ids)
-        for tile_id in newly_played_tiles:
-            if tile_id not in player_tiles:
-                raise TileNotOwnedError(f"Player {player_id} does not own tile {tile_id}")
-        
-        # 3. Create tile instances mapping for validation (this is a simplified approach)
-        # In a full implementation, this would come from the game state
-        tile_instances = {}
-        # For now, we'll assume tile instances exist and skip detailed validation
-        # This is still better than the minimal implementation
-        
-        # 4. Validate all melds in the action
-        for meld in action.melds:
-            try:
-                # Basic validation without tile instances (structural validation)
-                if len(meld.tiles) == 0:
-                    raise InvalidBoardStateError("Empty meld is not allowed")
-                if meld.kind.value == "group" and not (3 <= len(meld.tiles) <= 4):
-                    raise InvalidBoardStateError("Group must have 3-4 tiles")
-                elif meld.kind.value == "run" and len(meld.tiles) < 3:
-                    raise InvalidBoardStateError("Run must have at least 3 tiles")
-            except Exception as e:
-                raise InvalidBoardStateError(f"Invalid meld: {str(e)}")
-        
-        # 5. Check initial meld requirement if not yet met
-        if not player.initial_meld_met and newly_played_tiles:
-            # Get only the melds that contain newly played tiles (initial meld melds)
-            initial_melds = []
-            for meld in action.melds:
-                # Check if this meld contains any newly played tiles
-                if any(tile_id in newly_played_tiles for tile_id in meld.tiles):
-                    initial_melds.append(meld)
-            
-            if initial_melds:
-                # Create minimal tile instances for validation
-                # In practice, this would come from the game state's tile registry
-                initial_tiles = []
-                for tile_id in newly_played_tiles:
-                    # Create a dummy tile instance for validation
-                    from ..models.tiles import TileInstance, NumberedTile, Color
-                    # Simplified: assume all tiles are worth 5 points
-                    dummy_tile = TileInstance(kind=NumberedTile(number=5, color=Color.RED))
-                    dummy_tile.id = tile_id  # Override the ID
-                    initial_tiles.append(dummy_tile)
-                
-                if not self.validate_initial_meld(initial_tiles, initial_melds):
-                    raise InitialMeldNotMetError("Initial meld must have total value >= 30 points")
-        
-        # 6. Update player rack by removing used tiles
-        updated_rack_tiles = [tile_id for tile_id in player.rack.tile_ids 
-                            if tile_id not in newly_played_tiles]
-        updated_rack = type(player.rack)(tile_ids=updated_rack_tiles)
-        
-        # Update player with new rack and mark initial meld as met if tiles were played
-        updated_player = type(player)(
-            id=player.id,
-            name=player.name,
-            initial_meld_met=player.initial_meld_met or bool(newly_played_tiles),
-            rack=updated_rack
-        )
-        
-        # Update players list
-        updated_players = []
-        for p in game_state.players:
-            if p.id == player_id:
-                updated_players.append(updated_player)
-            else:
-                updated_players.append(p)
-        
-        # 7. Update board with new melds
-        new_board = type(game_state.board)(melds=action.melds)
-        
-        new_game_state = GameState(
-            game_id=game_state.game_id,
-            players=updated_players,
-            pool=game_state.pool,
-            board=new_board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
-        
-        # Check win condition
-        if self.check_win_condition(new_game_state, player_id):
-            new_game_state = GameState(
-                game_id=new_game_state.game_id,
-                players=new_game_state.players,
-                pool=new_game_state.pool,
-                board=new_game_state.board,
-                current_player_index=new_game_state.current_player_index,
-                status=GameStatus.COMPLETED,
-                created_at=new_game_state.created_at,
-                updated_at=new_game_state.updated_at
-            )
-            
-        return new_game_state
+        return GameActions.execute_play_action(game_state, player_id, action)
 
     def execute_draw_action(self, game_state: GameState, player_id: str) -> GameState:
         """Draw a tile from the pool.
@@ -397,95 +230,20 @@ class GameEngine:
             
         Returns:
             Updated GameState after successful draw
-            
-        Raises:
-            NotPlayersTurnError: If it's not the player's turn
-            PlayerNotInGameError: If player is not in the game
-            PoolEmptyError: If the pool is empty
         """
-        # Validate player's turn
-        if not self.can_player_act(game_state, player_id):
-            if game_state.status != GameStatus.IN_PROGRESS:
-                raise GameNotStartedError("Game is not in progress")
-            raise NotPlayersTurnError(f"It's not {player_id}'s turn")
-        
-        # Check pool is not empty
-        if len(game_state.pool.tile_ids) == 0:
-            raise PoolEmptyError("Cannot draw from empty pool")
-            
-        # Get player (validates player exists in game)  
-        player = self._get_player(game_state, player_id)
-        
-        # Full implementation of draw action:
-        import random
-        
-        # 1. Remove a random tile from pool
-        available_tiles = list(game_state.pool.tile_ids)
-        drawn_tile = random.choice(available_tiles)
-        remaining_pool_tiles = [tile_id for tile_id in available_tiles if tile_id != drawn_tile]
-        updated_pool = type(game_state.pool)(tile_ids=remaining_pool_tiles)
-        
-        # 2. Add drawn tile to player's rack
-        updated_rack_tiles = player.rack.tile_ids + [drawn_tile]
-        updated_rack = type(player.rack)(tile_ids=updated_rack_tiles)
-        
-        # Update player with new rack
-        updated_player = type(player)(
-            id=player.id,
-            name=player.name,
-            initial_meld_met=player.initial_meld_met,
-            rack=updated_rack
-        )
-        
-        # Update players list
-        updated_players = []
-        for p in game_state.players:
-            if p.id == player_id:
-                updated_players.append(updated_player)
-            else:
-                updated_players.append(p)
-        
-        # Return updated game state
-        return GameState(
-            game_id=game_state.game_id,
-            players=updated_players,
-            pool=updated_pool,
-            board=game_state.board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        return GameActions.execute_draw_action(game_state, player_id)
 
     def validate_initial_meld(self, tiles: List[TileInstance], melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points).
         
         Args:
-            tiles: Available tile instances (mapping for validation)
+            tiles: Available tile instances
             melds: Proposed melds to validate
             
         Returns:
             True if melds total >= 30 points
         """
-        if not melds:
-            return False
-            
-        # Create tile instances mapping for validation
-        tile_instances = {str(tile.id): tile for tile in tiles}
-        
-        total_value = 0
-        for meld in melds:
-            try:
-                # Validate the meld structure first
-                meld.validate_with_tiles(tile_instances)
-                # Get the value of the meld
-                meld_value = meld.get_value(tile_instances)
-                total_value += meld_value
-            except Exception:
-                # If meld is invalid, the initial meld is invalid
-                return False
-                
-        return total_value >= 30
+        return GameRules.validate_initial_meld(tiles, melds)
 
     def validate_joker_retrieval(self, game_state: GameState, meld_id: UUID, 
                                 replacement_tile: TileInstance, new_joker_usage: List[Meld]) -> bool:
@@ -499,44 +257,8 @@ class GameEngine:
             
         Returns:
             True if joker retrieval is valid
-            
-        Raises:
-            JokerRetrievalError: If retrieval is invalid
-            JokerNotReusedError: If joker is not reused
         """
-        # Find the meld containing the joker
-        target_meld = None
-        for meld in game_state.board.melds:
-            if meld.id == meld_id:
-                target_meld = meld
-                break
-                
-        if not target_meld:
-            raise JokerRetrievalError(f"Meld {meld_id} not found on board")
-        
-        # Check if meld actually contains a joker
-        # Note: This is simplified - in full implementation would check tile instances
-        if len(target_meld.tiles) == 0:
-            raise JokerRetrievalError("Cannot retrieve joker from empty meld")
-            
-        # Validate that replacement tile makes the original meld still valid
-        # Simplified validation - assumes the replacement is appropriate
-        
-        # Check that joker is being reused in the same turn
-        if not new_joker_usage:
-            raise JokerNotReusedError("Retrieved joker must be reused in the same turn")
-            
-        # Validate that new joker usage creates valid melds
-        joker_count = 0
-        for meld in new_joker_usage:
-            # Count jokers being used (simplified check)
-            if len(meld.tiles) >= 3:  # Basic meld size validation
-                joker_count += 1  # Simplified - assumes one joker per meld
-                
-        if joker_count == 0:
-            raise JokerNotReusedError("Retrieved joker must be used in new melds")
-            
-        return True
+        return GameRules.validate_joker_retrieval(game_state, meld_id, replacement_tile, new_joker_usage)
 
     def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
         """Check if player has emptied their rack and won.
@@ -548,8 +270,7 @@ class GameEngine:
         Returns:
             True if player has won
         """
-        player = self._get_player(game_state, player_id)
-        return len(player.rack.tile_ids) == 0
+        return GameRules.check_win_condition(game_state, player_id)
 
     def calculate_scores(self, game_state: GameState) -> Dict[str, int]:
         """Calculate penalty scores based on remaining tiles in racks.
@@ -560,20 +281,7 @@ class GameEngine:
         Returns:
             Dictionary mapping player IDs to their penalty scores
         """
-        scores = {}
-        for player in game_state.players:
-            penalty_score = 0
-            
-            # Calculate penalty based on tiles remaining in rack
-            for tile_id in player.rack.tile_ids:
-                # Simplified scoring - in full implementation would get actual tile values
-                # For now, assume each tile is worth 5 points penalty
-                # Jokers would be worth 30 points, numbered tiles their face value
-                penalty_score += 5  # Simplified penalty per tile
-                
-            scores[player.id] = penalty_score
-            
-        return scores
+        return GameRules.calculate_scores(game_state)
 
     def _start_game(self, game_state: GameState) -> GameState:
         """Start the game - players already have tiles dealt when they joined.
@@ -596,21 +304,3 @@ class GameEngine:
             created_at=game_state.created_at,
             updated_at=game_state.updated_at
         )
-
-    def _get_player(self, game_state: GameState, player_id: str) -> Player:
-        """Get player by ID from game state.
-        
-        Args:
-            game_state: Current game state
-            player_id: ID of player to find
-            
-        Returns:
-            Player object
-            
-        Raises:
-            PlayerNotInGameError: If player is not found
-        """
-        for player in game_state.players:
-            if player.id == player_id:
-                return player
-        raise PlayerNotInGameError(f"Player {player_id} not in game")
