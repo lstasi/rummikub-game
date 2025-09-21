@@ -32,8 +32,8 @@ The Game Engine is responsible for enforcing Rummikub game rules and managing ga
 
 ```python
 class GameEngine:
-    def create_game(self, game_id: UUID, num_players: int) -> GameState:
-        """Initialize a new game with specified number of players (2-4)."""
+    def create_game(self, num_players: int) -> GameState:
+        """Initialize a new game with specified number of players (2-4). Auto-generates UUID."""
     
     def join_game(self, game_state: GameState, player_name: str) -> GameState:
         """Join a player to the game and deal tiles from pool."""
@@ -48,7 +48,7 @@ class GameEngine:
     def get_current_player(self, game_state: GameState) -> str:
         """Get the ID of the player whose turn it is."""
     
-    def can_player_act(self, game_state: GameState, player_id: str) -> bool:
+    def can_player_take_action(self, game_state: GameState, player_id: str) -> bool:
         """Check if the specified player can take actions."""
     
     def advance_turn(self, game_state: GameState) -> GameState:
@@ -177,9 +177,10 @@ For ambiguous cases:
 
 ### Win Detection
 ```
-1. Check if player's rack is empty
-2. Verify all board combinations are valid
-3. Return true if both conditions met
+1. Perform win detection during advance_turn() or just before it's called
+2. Check if player's rack is empty after a successful play action  
+3. If rack is empty, mark player as winner and game as completed
+4. Return updated game state with winner information
 ```
 
 ## Implementation Notes

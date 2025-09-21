@@ -39,8 +39,8 @@ class GameActions:
             InitialMeldNotMetError: If initial meld requirement not met
             InvalidBoardStateError: If resulting board state is invalid
         """
-        # Validate player's turn
-        if not GameActions._can_player_act(game_state, player_id):
+        # Validate player's turn using game rules
+        if not GameRules.validate_player_turn(game_state, player_id):
             if game_state.status != GameStatus.IN_PROGRESS:
                 raise GameNotStartedError("Game is not in progress")
             raise NotPlayersTurnError(f"It's not {player_id}'s turn")
@@ -48,60 +48,22 @@ class GameActions:
         # Get player (validates player exists in game)
         player = GameActions._get_player(game_state, player_id)
         
-        # Full implementation of play action validation and execution:
+        # Use game rules for validation and execution:
         
-        # 1. Collect all tiles being played from the new melds
-        all_played_tiles = set()
-        for meld in action.melds:
-            all_played_tiles.update(meld.tiles)
+        # 1. Identify newly played tiles
+        newly_played_tiles = GameRules.identify_newly_played_tiles(action.melds, game_state.board.melds)
         
-        # Get all tiles currently on the board
-        current_board_tiles = set()
-        for meld in game_state.board.melds:
-            current_board_tiles.update(meld.tiles)
+        # 2. Validate tile ownership
+        GameRules.validate_tile_ownership(player, newly_played_tiles)
         
-        # Determine which tiles are newly played (not already on board)
-        newly_played_tiles = all_played_tiles - current_board_tiles
-        
-        # 2. Validate tile ownership - player must own all newly played tiles
-        player_tiles = set(player.rack.tile_ids)
-        for tile_id in newly_played_tiles:
-            if tile_id not in player_tiles:
-                raise TileNotOwnedError(f"Player {player_id} does not own tile {tile_id}")
-        
-        # 3. Validate all melds in the action using game rules
-        for meld in action.melds:
-            if not GameRules.validate_meld_structure(meld):
-                raise InvalidBoardStateError(f"Invalid meld structure: {meld}")
+        # 3. Validate all meld structures
+        GameRules.validate_meld_structures(action.melds)
         
         # 4. Check initial meld requirement if not yet met
-        if not player.initial_meld_met and newly_played_tiles:
-            # Get only the melds that contain newly played tiles (initial meld melds)
-            initial_melds = []
-            for meld in action.melds:
-                # Check if this meld contains any newly played tiles
-                if any(tile_id in newly_played_tiles for tile_id in meld.tiles):
-                    initial_melds.append(meld)
-            
-            if initial_melds:
-                # Create minimal tile instances for validation
-                # In practice, this would come from the game state's tile registry
-                initial_tiles = []
-                for tile_id in newly_played_tiles:
-                    # Create a dummy tile instance for validation
-                    from ..models.tiles import TileInstance, NumberedTile, Color
-                    # Simplified: assume all tiles are worth 5 points
-                    dummy_tile = TileInstance(kind=NumberedTile(number=5, color=Color.RED))
-                    dummy_tile.id = tile_id  # Override the ID
-                    initial_tiles.append(dummy_tile)
-                
-                if not GameRules.validate_initial_meld(initial_tiles, initial_melds):
-                    raise InitialMeldNotMetError("Initial meld must have total value >= 30 points")
+        GameRules.validate_initial_meld_requirement(player, newly_played_tiles, action.melds)
         
-        # 5. Update player rack by removing used tiles
-        updated_rack_tiles = [tile_id for tile_id in player.rack.tile_ids 
-                            if tile_id not in newly_played_tiles]
-        updated_rack = type(player.rack)(tile_ids=updated_rack_tiles)
+        # 5. Update player rack using game rules
+        updated_rack = GameRules.update_player_rack(player, newly_played_tiles)
         
         # Update player with new rack and mark initial meld as met if tiles were played
         updated_player = type(player)(
@@ -133,8 +95,8 @@ class GameActions:
             updated_at=game_state.updated_at
         )
         
-        # Check win condition
-        if GameRules.check_win_condition(new_game_state, player_id):
+        # Check win condition using game rules
+        if GameRules.check_win_condition(updated_player):
             new_game_state = GameState(
                 game_id=new_game_state.game_id,
                 players=new_game_state.players,
@@ -164,25 +126,23 @@ class GameActions:
             PlayerNotInGameError: If player is not in the game
             PoolEmptyError: If the pool is empty
         """
-        # Validate player's turn
-        if not GameActions._can_player_act(game_state, player_id):
+        # Validate player's turn using game rules
+        if not GameRules.validate_player_turn(game_state, player_id):
             if game_state.status != GameStatus.IN_PROGRESS:
                 raise GameNotStartedError("Game is not in progress")
             raise NotPlayersTurnError(f"It's not {player_id}'s turn")
         
-        # Check pool is not empty
-        if len(game_state.pool.tile_ids) == 0:
-            raise PoolEmptyError("Cannot draw from empty pool")
+        # Validate pool is not empty using game rules
+        GameRules.validate_pool_not_empty(game_state)
             
         # Get player (validates player exists in game)  
         player = GameActions._get_player(game_state, player_id)
         
-        # Full implementation of draw action using pool method:
+        # Use pool method and game rules for draw action:
         drawn_tile, updated_pool = game_state.pool.get_random_tile()
         
-        # 2. Add drawn tile to player's rack
-        updated_rack_tiles = player.rack.tile_ids + [drawn_tile]
-        updated_rack = type(player.rack)(tile_ids=updated_rack_tiles)
+        # Add drawn tile to player's rack using game rules
+        updated_rack = GameRules.add_tile_to_rack(player, drawn_tile)
         
         # Update player with new rack
         updated_player = type(player)(
@@ -232,6 +192,13 @@ class GameActions:
             else:
                 from ..models.exceptions import GameFinishedError
                 raise GameFinishedError("Game is already finished")
+        
+        # Check for winner before advancing turn (as requested in feedback)        
+        updated_game_state = GameRules.check_for_winner(game_state)
+        
+        # If game is completed due to winner, return immediately
+        if updated_game_state.status == GameStatus.COMPLETED:
+            return updated_game_state
                 
         next_index = (game_state.current_player_index + 1) % len(game_state.players)
         
@@ -257,14 +224,7 @@ class GameActions:
         Returns:
             True if it's the player's turn and game is active
         """
-        if game_state.status != GameStatus.IN_PROGRESS:
-            return False
-            
-        try:
-            current_player = game_state.players[game_state.current_player_index].id
-            return current_player == player_id
-        except (IndexError, AttributeError):
-            return False
+        return GameRules.validate_player_turn(game_state, player_id)
 
     @staticmethod
     def _get_player(game_state: GameState, player_id: str) -> Player:

@@ -4,16 +4,189 @@ This module contains all the validation logic for Rummikub game rules,
 separated from the main game engine for better organization.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Set
 from uuid import UUID
 
 from ..models import (
-    GameState, Player, Meld, TileInstance, GameStatus
+    GameState, Player, Meld, TileInstance, GameStatus, Rack
+)
+from ..models.exceptions import (
+    TileNotOwnedError, InitialMeldNotMetError, InvalidBoardStateError
 )
 
 
 class GameRules:
     """Class containing all Rummikub game rule validations."""
+    
+    @staticmethod
+    def validate_player_turn(game_state: GameState, player_id: str) -> bool:
+        """Validate that it's the specified player's turn."""
+        return (game_state.status == GameStatus.IN_PROGRESS and 
+                game_state.current_player_index is not None and
+                len(game_state.players) > game_state.current_player_index and
+                game_state.players[game_state.current_player_index].id == player_id)
+    
+    @staticmethod
+    def validate_tile_ownership(player: Player, newly_played_tiles: Set[UUID]) -> None:
+        """Validate that player owns all newly played tiles.
+        
+        Args:
+            player: Player attempting the action
+            newly_played_tiles: Set of tile IDs being played
+            
+        Raises:
+            TileNotOwnedError: If player doesn't own any of the tiles
+        """
+        player_tiles = set(player.rack.tile_ids)
+        for tile_id in newly_played_tiles:
+            if tile_id not in player_tiles:
+                raise TileNotOwnedError(f"Player {player.id} does not own tile {tile_id}")
+    
+    @staticmethod
+    def identify_newly_played_tiles(action_melds: List[Meld], current_board_melds: List[Meld]) -> Set[UUID]:
+        """Identify which tiles are newly played (not already on board).
+        
+        Args:
+            action_melds: Melds from the play action
+            current_board_melds: Current melds on the board
+            
+        Returns:
+            Set of tile IDs that are newly played
+        """
+        # Collect all tiles being played from the new melds
+        all_played_tiles = set()
+        for meld in action_melds:
+            all_played_tiles.update(meld.tiles)
+        
+        # Get all tiles currently on the board
+        current_board_tiles = set()
+        for meld in current_board_melds:
+            current_board_tiles.update(meld.tiles)
+        
+        # Return newly played tiles
+        return all_played_tiles - current_board_tiles
+    
+    @staticmethod
+    def validate_meld_structures(melds: List[Meld]) -> None:
+        """Validate that all melds have proper structure.
+        
+        Args:
+            melds: List of melds to validate
+            
+        Raises:
+            InvalidBoardStateError: If any meld has invalid structure
+        """
+        for meld in melds:
+            if not GameRules.validate_meld_structure(meld):
+                raise InvalidBoardStateError(f"Invalid meld structure: {meld}")
+    
+    @staticmethod
+    def validate_initial_meld_requirement(player: Player, newly_played_tiles: Set[UUID], 
+                                        action_melds: List[Meld]) -> None:
+        """Validate initial meld requirement if not yet met.
+        
+        Args:
+            player: Player attempting the action
+            newly_played_tiles: Set of newly played tile IDs
+            action_melds: Melds from the play action
+            
+        Raises:
+            InitialMeldNotMetError: If initial meld requirement not met
+        """
+        if not player.initial_meld_met and newly_played_tiles:
+            # Get only the melds that contain newly played tiles (initial meld melds)
+            initial_melds = []
+            for meld in action_melds:
+                if any(tile_id in newly_played_tiles for tile_id in meld.tiles):
+                    initial_melds.append(meld)
+            
+            # We need tile instances for validation - create them
+            # TODO: This is a placeholder - need access to tile instances
+            tile_instances = []  # This should come from game state
+            
+            if not GameRules.validate_initial_meld(tile_instances, initial_melds):
+                raise InitialMeldNotMetError("Initial meld must total at least 30 points")
+    
+    @staticmethod
+    def update_player_rack(player: Player, newly_played_tiles: Set[UUID]) -> Rack:
+        """Update player's rack by removing played tiles.
+        
+        Args:
+            player: Player whose rack to update
+            newly_played_tiles: Set of tile IDs to remove
+            
+        Returns:
+            Updated Rack with tiles removed
+        """
+        remaining_tiles = [tid for tid in player.rack.tile_ids if tid not in newly_played_tiles]
+        return Rack(tile_ids=remaining_tiles)
+    
+    @staticmethod
+    def validate_pool_not_empty(game_state: GameState) -> None:
+        """Validate that the pool is not empty.
+        
+        Args:
+            game_state: Current game state
+            
+        Raises:
+            PoolEmptyError: If the pool is empty
+        """
+        from ..models.exceptions import PoolEmptyError
+        if len(game_state.pool.tile_ids) == 0:
+            raise PoolEmptyError("Cannot draw from empty pool")
+    
+    @staticmethod
+    def add_tile_to_rack(player: Player, tile_id: UUID) -> Rack:
+        """Add a drawn tile to player's rack.
+        
+        Args:
+            player: Player whose rack to update
+            tile_id: ID of tile to add
+            
+        Returns:
+            Updated Rack with new tile
+        """
+        updated_rack_tiles = player.rack.tile_ids + [tile_id]
+        return Rack(tile_ids=updated_rack_tiles)
+    
+    @staticmethod
+    def check_for_winner(game_state: GameState) -> GameState:
+        """Check all players for win condition and update game status if winner found.
+        
+        Args:
+            game_state: Current game state
+            
+        Returns:
+            Updated GameState (completed if winner found, otherwise unchanged)
+        """
+        # Check if any player has won (empty rack)
+        for player in game_state.players:
+            if GameRules.check_win_condition(player):
+                # Player has won - mark game as completed
+                return GameState(
+                    game_id=game_state.game_id,
+                    players=game_state.players,
+                    pool=game_state.pool,
+                    board=game_state.board,
+                    current_player_index=game_state.current_player_index,
+                    status=GameStatus.COMPLETED,
+                    created_at=game_state.created_at,
+                    updated_at=game_state.updated_at
+                )
+        
+        return game_state
+
+    @staticmethod
+    def check_win_condition(player: Player) -> bool:
+        """Check if player has won (empty rack).
+        
+        Args:
+            player: Player to check
+            
+        Returns:
+            True if player's rack is empty
+        """
+        return len(player.rack.tile_ids) == 0
     
     @staticmethod
     def validate_initial_meld(tiles: List[TileInstance], melds: List[Meld]) -> bool:

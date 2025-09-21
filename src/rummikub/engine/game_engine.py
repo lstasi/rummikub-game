@@ -49,7 +49,7 @@ class GameEngine:
         game_state = GameState.create_new_game(None, num_players)
         
         # Initialize the complete tile pool
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
         # Return game state with initialized pool
         return GameState(

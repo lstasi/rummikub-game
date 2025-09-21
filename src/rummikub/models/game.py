@@ -92,7 +92,7 @@ class Pool:
         pool = cls(tile_ids=tile_ids)
         pool.validate_complete_pool(tile_instances)
         
-        return pool, tile_instances
+        return pool
         
     def create_rack(self, num_tiles: int = 14) -> tuple["Rack", "Pool"]:
         """Create a rack by dealing tiles from this pool.
