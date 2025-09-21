@@ -39,18 +39,14 @@ class GameEngine:
         Raises:
             GameStateError: If num_players is not between 2 and 4
         """
-        from uuid import uuid4
         from ..models.game import Pool
         
         # Validate num_players but don't strictly enforce it - allow flexibility
         if not (2 <= num_players <= 4):
             raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
         
-        # Generate a unique game ID
-        game_id = uuid4()
-        
-        # Create the base game state
-        game_state = GameState.create_new_game(game_id, num_players)
+        # Create the base game state (generates UUID internally)
+        game_state = GameState.create_new_game(None, num_players)
         
         # Initialize the complete tile pool
         pool, tile_instances = Pool.create_full_pool()
@@ -88,34 +84,16 @@ class GameEngine:
         if len(game_state.players) >= 4:
             raise GameFullError("Game already has maximum 4 players")
         
-        # Generate a unique player ID using UUID
-        from uuid import uuid4
-        player_id = str(uuid4())
-        
         # Check if player with this name already exists (by name, not ID)
         for existing_player in game_state.players:
             if existing_player.name == player_name:
                 raise InvalidMoveError(f"Player with name '{player_name}' already in game")
         
-        # Deal 14 tiles from pool for this player
-        import random
-        available_tiles = list(game_state.pool.tile_ids)
+        # Create rack from pool (handles tile dealing and pool reduction)
+        player_rack, updated_pool = game_state.pool.create_rack(14)
         
-        if len(available_tiles) < 14:
-            raise PoolEmptyError("Not enough tiles in pool to deal to new player")
-        
-        # Randomly select 14 tiles for the player
-        random.shuffle(available_tiles)
-        player_tiles = available_tiles[:14]
-        remaining_tiles = available_tiles[14:]
-        
-        # Create player with dealt tiles
-        from ..models.game import Rack
-        player_rack = Rack(tile_ids=player_tiles)
-        new_player = Player(id=player_id, name=player_name, rack=player_rack)
-        
-        # Update pool with remaining tiles
-        updated_pool = type(game_state.pool)(tile_ids=remaining_tiles)
+        # Create new player (generates UUID internally)
+        new_player = Player.create_player(player_name, player_rack)
         
         # Add player to game
         updated_players = game_state.players + [new_player]
@@ -245,21 +223,6 @@ class GameEngine:
         """
         return GameRules.validate_initial_meld(tiles, melds)
 
-    def validate_joker_retrieval(self, game_state: GameState, meld_id: UUID, 
-                                replacement_tile: TileInstance, new_joker_usage: List[Meld]) -> bool:
-        """Validate that joker retrieval is legal and joker is reused in same turn.
-        
-        Args:
-            game_state: Current game state
-            meld_id: ID of meld containing joker to retrieve
-            replacement_tile: Tile to replace the joker with
-            new_joker_usage: New melds where joker will be used
-            
-        Returns:
-            True if joker retrieval is valid
-        """
-        return GameRules.validate_joker_retrieval(game_state, meld_id, replacement_tile, new_joker_usage)
-
     def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
         """Check if player has emptied their rack and won.
         
@@ -271,17 +234,6 @@ class GameEngine:
             True if player has won
         """
         return GameRules.check_win_condition(game_state, player_id)
-
-    def calculate_scores(self, game_state: GameState) -> Dict[str, int]:
-        """Calculate penalty scores based on remaining tiles in racks.
-        
-        Args:
-            game_state: Completed game state
-            
-        Returns:
-            Dictionary mapping player IDs to their penalty scores
-        """
-        return GameRules.calculate_scores(game_state)
 
     def _start_game(self, game_state: GameState) -> GameState:
         """Start the game - players already have tiles dealt when they joined.

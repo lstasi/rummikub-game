@@ -4,7 +4,6 @@ This module contains all the game actions that can be performed,
 separated from the main game engine for better organization.
 """
 
-import random
 from typing import Dict, List, Set
 from uuid import UUID
 
@@ -178,13 +177,8 @@ class GameActions:
         # Get player (validates player exists in game)  
         player = GameActions._get_player(game_state, player_id)
         
-        # Full implementation of draw action:
-        
-        # 1. Remove a random tile from pool
-        available_tiles = list(game_state.pool.tile_ids)
-        drawn_tile = random.choice(available_tiles)
-        remaining_pool_tiles = [tile_id for tile_id in available_tiles if tile_id != drawn_tile]
-        updated_pool = type(game_state.pool)(tile_ids=remaining_pool_tiles)
+        # Full implementation of draw action using pool method:
+        drawn_tile, updated_pool = game_state.pool.get_random_tile()
         
         # 2. Add drawn tile to player's rack
         updated_rack_tiles = player.rack.tile_ids + [drawn_tile]

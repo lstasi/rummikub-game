@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from .base import generate_uuid
 from .exceptions import GameStateError
@@ -93,6 +93,58 @@ class Pool:
         pool.validate_complete_pool(tile_instances)
         
         return pool, tile_instances
+        
+    def create_rack(self, num_tiles: int = 14) -> tuple["Rack", "Pool"]:
+        """Create a rack by dealing tiles from this pool.
+        
+        Args:
+            num_tiles: Number of tiles to deal (default 14)
+            
+        Returns:
+            Tuple of (Rack with dealt tiles, updated Pool with remaining tiles)
+            
+        Raises:
+            PoolEmptyError: If not enough tiles in pool
+        """
+        import random
+        
+        if len(self.tile_ids) < num_tiles:
+            from .exceptions import PoolEmptyError
+            raise PoolEmptyError(f"Not enough tiles in pool. Need {num_tiles}, have {len(self.tile_ids)}")
+        
+        # Randomly select tiles
+        available_tiles = list(self.tile_ids)
+        random.shuffle(available_tiles)
+        dealt_tiles = available_tiles[:num_tiles]
+        remaining_tiles = available_tiles[num_tiles:]
+        
+        # Create rack and updated pool
+        rack = Rack(tile_ids=dealt_tiles)
+        updated_pool = Pool(tile_ids=remaining_tiles)
+        
+        return rack, updated_pool
+        
+    def get_random_tile(self) -> tuple[UUID, "Pool"]:
+        """Get a random tile from this pool.
+        
+        Returns:
+            Tuple of (tile ID, updated Pool with remaining tiles)
+            
+        Raises:
+            PoolEmptyError: If pool is empty
+        """
+        import random
+        
+        if self.is_empty():
+            from .exceptions import PoolEmptyError
+            raise PoolEmptyError("Cannot draw from empty pool")
+        
+        # Choose random tile
+        tile_id = random.choice(self.tile_ids)
+        remaining_tiles = [tid for tid in self.tile_ids if tid != tile_id]
+        
+        updated_pool = Pool(tile_ids=remaining_tiles)
+        return tile_id, updated_pool
     
     def validate_complete_pool(self, tile_instances: Dict[str, "TileInstance"]) -> bool:
         """Validate that pool contains exactly the correct set of tiles.
@@ -182,10 +234,26 @@ class Board:
 class Player:
     """A player in the game."""
     
-    id: str
+    id: str = field(default_factory=lambda: str(uuid4()))
     name: Optional[str] = None
     initial_meld_met: bool = False
     rack: Rack = field(default_factory=Rack)
+    
+    @classmethod
+    def create_player(cls, name: str, rack: Rack = None) -> "Player":
+        """Create a new player with UUID and optional rack.
+        
+        Args:
+            name: Player name
+            rack: Optional pre-created rack
+            
+        Returns:
+            New Player instance with generated UUID
+        """
+        return cls(
+            name=name,
+            rack=rack or Rack()
+        )
 
 
 class GameStatus(str, Enum):
@@ -211,22 +279,25 @@ class GameState:
     id: UUID = field(default_factory=generate_uuid)
     
     @classmethod
-    def create_new_game(cls, game_id: UUID, num_players: int) -> "GameState":
-        """Create a new game state with specified number of players.
+    def create_new_game(cls, game_id: UUID = None, num_players: int = None) -> "GameState":
+        """Create a new game state with auto-generated or provided UUID.
         
         Args:
-            game_id: Unique identifier for the game
-            num_players: Number of players (must be 2-4 according to Rummikub rules)
+            game_id: Unique identifier for the game (optional, auto-generated if not provided)
+            num_players: Number of players (optional, must be 2-4 according to Rummikub rules)
             
         Returns:
             New GameState instance
             
         Raises:
-            GameStateError: If num_players is not within valid range (2-4)
+            GameStateError: If num_players is provided and not within valid range (2-4)
         """
-        if not (2 <= num_players <= 4):
+        if num_players is not None and not (2 <= num_players <= 4):
             raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
         
+        if game_id is None:
+            game_id = uuid4()
+            
         return cls(game_id=game_id)
     
     def validate_player_count(self) -> bool:

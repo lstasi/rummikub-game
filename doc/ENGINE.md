@@ -35,8 +35,8 @@ class GameEngine:
     def create_game(self, game_id: UUID, num_players: int) -> GameState:
         """Initialize a new game with specified number of players (2-4)."""
     
-    def add_player(self, game_state: GameState, player_id: str, player_name: str = None) -> GameState:
-        """Add a player to the game. Deals 14 tiles when game is full and starts."""
+    def join_game(self, game_state: GameState, player_name: str) -> GameState:
+        """Join a player to the game and deal tiles from pool."""
     
     def get_game_status(self, game_state: GameState) -> GameStatus:
         """Get current game status (waiting_for_players, in_progress, completed)."""
@@ -84,23 +84,16 @@ class GameEngine:
     def validate_initial_meld(self, tiles: List[TileInstance], melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points)."""
     
-    def validate_joker_retrieval(self, game_state: GameState, meld_id: UUID, 
-                                replacement_tile: TileInstance, new_joker_usage: List[Meld]) -> bool:
-        """Validate that joker retrieval is legal and joker is reused in same turn."""
-    
     def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
         """Check if player has emptied their rack and won."""
-    
-    def calculate_scores(self, game_state: GameState) -> Dict[str, int]:
-        """Calculate penalty scores based on remaining tiles in racks."""
 ```
 
 ## State Transitions
 
 ### Game Setup Flow
 1. `create_game()` → GameStatus.WAITING_FOR_PLAYERS
-2. `add_player()` × N → GameStatus.WAITING_FOR_PLAYERS  
-3. `add_player()` (reaches min players) → GameStatus.IN_PROGRESS
+2. `join_game()` × N → GameStatus.WAITING_FOR_PLAYERS  
+3. `start_game()` (manual start) → GameStatus.IN_PROGRESS
    - Deal 14 tiles to each player
    - Initialize turn order
    - Set current player
@@ -125,11 +118,9 @@ class GameEngine:
 2. **Rule-specific validation:**
    - Initial meld requirement (if applicable)
    - Combination validity (groups/runs)
-   - Joker usage rules
-   - Board state consistency
 
 3. **Post-move validation:**
-   - All board combinations valid
+   - Validate board and rack consistency
    - No tiles lost/duplicated
    - Game state consistency
 
@@ -152,10 +143,6 @@ class GameEngine:
 - `PoolEmptyError`: Attempting to draw from empty pool
 - `InvalidBoardStateError`: Resulting board state has invalid combinations
 
-### Joker-Related Errors (extend JokerAssignmentError)
-- `JokerRetrievalError`: Invalid joker substitution attempt  
-- `JokerNotReusedError`: Retrieved joker not used in same turn
-
 *Note: These engine-specific exceptions will be added to `src/rummikub/models/exceptions.py` during implementation.*
 
 ## Algorithms
@@ -172,9 +159,10 @@ class GameEngine:
 ```
 1. Extract all tile IDs from current board
 2. Extract all tile IDs from proposed board  
-3. Verify sets are identical (no tiles added/removed)
-4. Validate each meld in proposed board
-5. Return all validations pass
+3. Validate all new tile IDs come from player rack
+4. Validate player rack doesn't have these tiles anymore
+5. Validate each meld in proposed board
+6. Return all validations pass
 ```
 
 ### Joker Value Calculation
