@@ -6,7 +6,7 @@ from typing import Union
 from uuid import UUID
 
 from .base import generate_uuid
-from .exceptions import InvalidColorError, InvalidNumberError
+from .exceptions import InvalidNumberError
 
 
 class Color(str, Enum):

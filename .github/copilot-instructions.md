@@ -1,219 +1,231 @@
-# GitHub Copilot Working Instructions – Rummikub Game
+# GitHub Copilot Instructions – Rummikub Game
 
-These instructions define how any agent (or human) must work on this repository. The core rule: only perform the exact step currently marked active in the project TODO list. Do not jump ahead.
+Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
 
-Reference rules: see `RUMMIKUB_RULES.md`.
+## Working Effectively
 
-## Golden Rules
+### Bootstrap and Build the Repository
+- Install dependencies: `pip install -e .[dev]` -- takes ~30 seconds
+- All quality gates combined take under 1 second total
+- Run quality gates: `ruff check . && mypy src/ && pytest tests/ -v --cov=src --cov-report=term-missing`
 
-- Follow the ordered TODO list strictly. Work on one task at a time.
-- For every task, use this 5-step loop:
-  1) Propose changes
-  2) Update documentation
-  3) Implement minimal code
-  4) Add/Update tests
-  5) Run quality gates and summarize
-- Keep changes narrowly scoped to the current task. Defer anything extra as a follow-up TODO.
-- Prefer small, frequent commits following Conventional Commits.
-- Never leave the repo in a broken state. If something fails, fix or revert within the same task.
+### Quality Gates (Required Before Any Commit)
+- **Lint**: `ruff check .` -- takes ~0.01s, must return "All checks passed!"
+- **Type Check**: `mypy src/` -- takes ~0.3s, must return "Success: no issues found"
+- **Tests**: `pytest tests/ -v --cov=src --cov-report=term-missing` -- takes ~0.3s, all tests must pass
 
-## Repository structure (planned)
+### Development Workflow
+- **ALWAYS use the pyrun script**: `./scripts/pyrun.sh "python code here"` for testing models
+- **Interactive mode**: `./scripts/pyrun.sh -i` for exploration
+- **File execution**: `./scripts/pyrun.sh -f path/to/script.py`
 
-Do not create files outside the current task. Future tasks will introduce the following structure:
-
-- `src/` – Application code (Python package: `rummikub`)
-- `tests/` – Pytest test suite
-- `doc/` – Architecture and component docs (longform)
-- Docker/Compose files for containerized runs
-
-## Technology constraints
-
-- Language: Python (>=3.11 recommended)
-- Storage: Redis (backend state)
-- Testing: pytest
-- API: FastAPI (assumption unless specified otherwise)
-- Containers: Docker + docker-compose
-
-## Required documentation set (to be created by later tasks)
-
-Do not create these files until their corresponding TODO is active. When working on a task, update or create the relevant doc below:
-
-- `doc/ARCHITECTURE.md` – high-level system overview, component diagram, data flow
-- `doc/MODELS.md` – domain model design, invariants, serialization
-- `doc/ENGINE.md` – game engine responsibilities, public API, algorithms
-- `doc/SERVICE.md` – service layer with Redis integration, keys, locking/transactions
-- `doc/API.md` – REST endpoints (and/or WebSocket), request/response contracts
-- `doc/UI.md` – UI flows, components, API usage
-- `doc/DEPLOYMENT.md` – Dockerfile, docker-compose, environment vars, runbook
-- `doc/TESTING.md` – test strategy, fixtures, coverage goals, CI checks
-
-For classes and functions, include clear docstrings (Google or NumPy style) and type hints.
-
-## Step workflow template (apply to every TODO)
-
-For the current TODO, follow this exact sequence:
-
-1) Propose changes
-- Summarize the intent and scope.
-- List files to add/change (paths) and the nature of each change.
-- Define public interfaces (function/class signatures, endpoints, data shapes) and error modes.
-- Identify edge cases and assumptions.
-- Acceptance criteria checklist (see template below).
-
-2) Update documentation
-- Update the relevant `doc/*.md` file(s) for the task BEFORE coding.
-- Add diagrams or tables as needed (keep text authoritative and concise).
-- Cross-link to `RUMMIKUB_RULES.md` where rules inform behavior.
-
-3) Implement minimal code
-- Add code strictly matching the documented interfaces.
-- Keep implementation minimal for the acceptance criteria. Avoid speculative features.
-- Include docstrings and type annotations.
-
-4) Add/Update tests (pytest)
-- Write tests that enforce the acceptance criteria.
-- Cover happy path and at least 1–2 edge cases per public API.
-- Prefer fast, isolated unit tests. Use `fakeredis` for service layer tests.
-
-5) Run quality gates and summarize
-- Lint/format (e.g., ruff/black if configured), type check (mypy if configured), run `pytest`.
-- Provide a short PASS/FAIL summary and fix failures.
-- If new external dependencies were added, ensure they are pinned and documented.
-
-If any part cannot be completed within the current task scope, add a new TODO with a concise description.
-
-## Acceptance criteria template
-
-For each task, define and meet criteria like the following:
-
-- Documentation: Relevant `doc/*.md` updated with design and API/contracts.
-- Code: Public API implemented with docstrings and types; no dead code.
-- Tests: Pytest cases added; cover success + 1–2 edge cases; deterministic.
-- Quality gates: Lint/typecheck/test all PASS locally.
-- Build/run: If applicable, local run instructions updated under the relevant doc.
-
-## Commit and PR guidelines
-
-- Use Conventional Commits:
-  - feat: new feature
-  - fix: bug fix
-  - docs: documentation only changes
-  - test: adding or updating tests
-  - chore/build/ci/refactor/perf/style as appropriate
-- Keep commits scoped to the task; avoid mixing concerns.
-- PR Checklist:
-  - [ ] Proposed changes section present
-  - [ ] Docs updated first
-  - [ ] Code matches docs
-  - [ ] Tests added/updated and passing
-  - [ ] Quality gates PASS summary
-  - [ ] No TODOs left untracked
-
-## Game domain coverage expectations
-
-Use `RUMMIKUB_RULES.md` as the authoritative source for rules. The implementation must support:
-- Tiles: numbers 1–13 in four colors, 2 sets each; 2 jokers
-- Valid combinations: groups (same number, distinct colors), runs (consecutive numbers, same color)
-- Initial meld total value >= 30
-- Turn actions: play tiles or draw one tile
-- Board rearrangement: always end turn with all melds valid
-- Joker rules: substitution, value based on position, retrieval via replacement
-- Winning and optional scoring (per rules)
-
-Edge cases to cover in design and tests:
-- Duplicate colors in a group (invalid)
-- Runs crossing 1 or 13 boundaries or mixing colors (invalid)
-- Joker retrieval and reuse in the same turn
-- Initial meld valuation with jokers
-- Rearrangement that temporarily invalidates but finishes valid
-- Empty pool draws; end-of-game conditions
-
-## Area-specific instructions
-
-### Models (definitions then implementation)
-- Propose: Data types for Tile, Joker, Color, Group, Run, Meld, Rack, Pool, Board, Player, GameState, Turn, Move.
-- Docs: `doc/MODELS.md` with invariants, validation, and serialization (JSON) rules.
-- Code: `src/rummikub/models/*` with dataclasses or Pydantic models; validation methods; serde helpers.
-- Tests: `tests/models/*` for validation, scoring utilities (initial meld), joker handling, serialization round-trip.
-
-### Game Engine (definition then implementation)
-- Propose: Engine responsibilities and API (setup, turn flow, play/rearrange, scoring, end-of-game); error taxonomy.
-- Docs: `doc/ENGINE.md` with method contracts, inputs/outputs, state transitions.
-- Code: `src/rummikub/engine/*` implementing the contracts; keep rearrangement logic incremental but valid.
-- Tests: `tests/engine/*` covering legal/illegal plays, rearrangement validity, initial meld, joker retrieval, win state.
-
-### Game Service (definition then implementation)
-- Propose: Redis schema (keys, data structures), optimistic locking or Lua scripts, session/invite flows.
-- Docs: `doc/SERVICE.md` with API, concurrency model, failure handling.
-- Code: `src/rummikub/service/*` with Redis adapter interface + implementation; DI-friendly for tests.
-- Tests: `tests/service/*` using `fakeredis`; cover lifecycle, concurrency edges, error paths.
-
-### API Interface (definition then implementation)
-- Propose: REST endpoints (or WebSocket events), JSON contracts, auth/session (invite code), error model.
-- Docs: `doc/API.md` with OpenAPI excerpts and payload examples.
-- Code: `src/rummikub/api/*` using FastAPI; schemas with Pydantic; error handling unified.
-- Tests: `tests/api/*` using FastAPI TestClient; cover success and failure paths.
-
-### UI (definition then implementation)
-- Propose: Minimal UI flows to create/join game, view rack/board, play/rearrange.
-- Docs: `doc/UI.md` with component/flow diagrams, API calls.
-- Code: Place under a future `ui/` (or integrate a simple static client) as defined by the UI task.
-- Tests: Add minimal UI tests if framework supports; otherwise document manual smoke steps.
-
-### Dockerization and Compose
-- Propose: Container boundaries, environment variables, volumes, ports.
-- Docs: `doc/DEPLOYMENT.md` with full run instructions and troubleshooting.
-- Code: `Dockerfile`, `docker-compose.yml`; healthchecks; dev vs prod notes.
-- Tests: Smoke test in CI (build + start + ping health endpoint) where feasible.
-
-## Quality gates checklist (run each task)
-
-- Build/package config valid (pyproject/requirements as applicable)
-- Lint: no errors (ruff/flake8) – optional until configured
-- Types: mypy – optional until configured
-- Tests: `pytest` PASS locally
-- Containers: if touched, build succeeds and services start locally
-
-## Python Code Testing Best Practices
-
-When testing Python code during development, use the provided `scripts/pyrun.sh` utility instead of complex inline commands:
-
-**Instead of complex inline Python:**
+### Examples of Working with the Codebase
 ```bash
-cd /workspace/lab/rummikub-game && python -c "
-from src.rummikub.models import Color, NumberedTile
-tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
-print(f'Created: {tile}')
-"
-```
-
-**Use the pyrun script:**
-```bash
+# Test basic tile creation
 ./scripts/pyrun.sh "
 from rummikub.models import Color, NumberedTile, TileInstance
 tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
-print(f'Created: {tile}')
-print(f'JSON: {tile.model_dump_json(indent=2)}')
+print(f'Created: {tile} (ID: {tile.id})')
+"
+
+# Test meld validation
+./scripts/pyrun.sh "
+from rummikub.models import Color, NumberedTile, TileInstance, Meld, MeldKind
+
+# Create a valid group (same number, different colors)
+tiles = [
+    TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
+    TileInstance(kind=NumberedTile(number=7, color=Color.BLUE)),
+    TileInstance(kind=NumberedTile(number=7, color=Color.BLACK))
+]
+
+group = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
+tile_instances = {str(t.id): t for t in tiles}
+group.validate_with_tiles(tile_instances)
+print(f'Valid group with value: {group.get_value(tile_instances)}')
 "
 ```
 
-**Script usage patterns:**
-- Quick tests: `./scripts/pyrun.sh "from rummikub.models import Color; print(list(Color))"`
-- Interactive exploration: `./scripts/pyrun.sh -i`
-- Run test files: `./scripts/pyrun.sh -f path/to/test.py`
+## Current Capabilities
 
-This approach is cleaner, handles PYTHONPATH automatically, and avoids shell escaping issues.
+### What You Can Build and Test
+- **Models layer**: Complete implementation with validation, serialization
+- **Domain logic**: Tile management, meld validation, game state tracking
+- **All basic Rummikub rules**: Groups, runs, jokers, initial meld requirements
 
-## Proposal template (copy into task description)
+### What Is NOT Yet Implemented
+- **API layer**: No FastAPI server to run
+- **Service layer**: No Redis integration
+- **UI layer**: No user interface
+- **Docker**: No containerization yet
 
-- Summary: <what and why>
-- Files: <add/edit paths>
-- Public API: <signatures/contracts>
-- Edge cases: <list>
-- Assumptions: <list>
-- Acceptance criteria: <list of verifiable checks>
+### Validation Scenarios
+Always run these scenarios after making model changes:
+1. **Tile Creation**: Create numbered tiles and jokers with valid/invalid parameters
+2. **Meld Validation**: Test groups (same number, different colors) and runs (consecutive numbers, same color)
+3. **Joker Handling**: Test joker assignment in groups and runs  
+4. **Game State**: Create players and game states
+5. **Initial Meld**: Test 30-point minimum requirement validation
+
+## Contributing Workflow
+
+### Golden Rules
+- Follow the TODO list strictly (`TODO.md`) - work on one task at a time
+- Use the 5-step loop: Propose → Update docs → Implement → Test → Quality gates
+- Never leave the repo broken - fix or revert within the same task
+- Use Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, etc.)
+
+### Required Documentation Files
+Update these docs BEFORE coding (located in `doc/`):
+- `ARCHITECTURE.md` - System overview  
+- `MODELS.md` - Domain model design (already comprehensive)
+- `ENGINE.md` - Game engine API
+- `SERVICE.md` - Redis integration design
+- `API.md` - REST endpoints design  
+- `UI.md` - User interface flows
+- `DEPLOYMENT.md` - Docker and deployment
+- `TESTING.md` - Test strategy (already detailed)
+
+### Reference Files
+- `RUMMIKUB_RULES.md` - Authoritative game rules
+- `TODO.md` - Current active task (follow strictly)
+
+## Technology Constraints
+
+### Stack
+- **Language**: Python 3.11+ (3.12 available)
+- **Models**: Dataclasses (not Pydantic models despite dependency)
+- **API**: FastAPI (not yet implemented)
+- **Storage**: Redis (not yet implemented) 
+- **Testing**: pytest with 87% coverage
+- **Linting**: ruff + mypy
+
+### Key Packages
+- Core: `fastapi>=0.115`, `uvicorn[standard]>=0.30`, `redis>=5.0`  
+- Testing: `pytest>=8.3`, `pytest-cov>=5.0`, `fakeredis>=2.23`, `httpx>=0.27`
+- Quality: `ruff>=0.6`, `mypy>=1.11`
+
+## Common Tasks
+
+### Run the Test Suite
+```bash
+# Basic test run
+pytest
+
+# With coverage report  
+pytest --cov=src --cov-report=term-missing
+
+# Specific test file
+pytest tests/models/test_model_validation.py -v
+```
+
+### Fix Code Quality Issues
+```bash  
+# Auto-fix linting issues
+ruff check --fix .
+
+# Check type annotations
+mypy src/
+
+# Run all quality gates
+ruff check . && mypy src/ && pytest tests/ -v
+```
+
+### Explore the Models
+```bash
+# Interactive exploration
+./scripts/pyrun.sh -i
+
+# Then in Python:
+from rummikub.models import *
+help(TileInstance)
+help(Meld)
+```
+
+## Repository Structure
+
+### Source Code
+```
+src/rummikub/
+├── __init__.py
+├── models/
+│   ├── __init__.py          # Main exports
+│   ├── base.py              # UUID generation utilities
+│   ├── tiles.py             # Color, NumberedTile, JokerTile, TileInstance  
+│   ├── melds.py             # Meld, MeldKind with validation
+│   ├── game.py              # Player, Rack, Pool, Board, GameState
+│   ├── actions.py           # Turn, ActionType, Move
+│   └── exceptions.py        # Domain-specific exceptions
+```
+
+### Tests
+```
+tests/
+├── conftest.py              # pytest fixtures
+└── models/
+    ├── test_initialization.py   # Basic model creation
+    └── test_model_validation.py # Validation rules
+```
+
+### Documentation
+```
+doc/
+├── ARCHITECTURE.md          # High-level design
+├── MODELS.md               # Domain model specs (comprehensive)
+├── ENGINE.md               # Game engine design (stub)
+├── SERVICE.md              # Redis integration design (stub)
+├── API.md                  # REST API design (stub)  
+├── UI.md                   # UI flows design (stub)
+├── DEPLOYMENT.md           # Docker setup (stub)
+└── TESTING.md              # Test strategy (detailed)
+```
+
+## Domain Model Reference
+
+### Core Entities
+- **Color**: `BLACK`, `RED`, `BLUE`, `ORANGE` 
+- **TileInstance**: Physical tile with UUID and kind (NumberedTile or JokerTile)
+- **Meld**: GROUP (same number, different colors) or RUN (consecutive numbers, same color)
+- **Player**: Has ID, name, rack, and initial_meld_met flag
+- **GameState**: Contains players, pool, board, and game status
+
+### Validation Rules
+- **Groups**: 3-4 tiles, same number, all different colors
+- **Runs**: 3+ tiles, consecutive numbers, same color, no wrapping (12-13-1 invalid)
+- **Initial Meld**: Must total ≥30 points before first board play
+- **Jokers**: Take value of tile they represent, can be retrieved by replacement
+
+### Key Methods
+```python  
+# Tile validation
+meld.validate_with_tiles(tile_instances)  # Raises InvalidMeldError
+meld.get_value(tile_instances)           # Returns point value
+
+# Game setup
+pool, tiles = Pool.create_full_pool()    # 106 tiles per Rummikub rules
+player = Player(id=str(uuid4()), name="Alice")
+```
+
+## Troubleshooting
+
+### Import Errors
+- Ensure you've run `pip install -e .[dev]`
+- Use `./scripts/pyrun.sh` instead of direct python commands
+- Check that you're in the repository root directory
+
+### Test Failures
+- Run tests individually: `pytest tests/models/test_model_validation.py::TestClass::test_method -v`
+- Use `./scripts/pyrun.sh` to reproduce test scenarios interactively
+
+### Linting/Type Errors
+- Run `ruff check --fix .` for auto-fixes
+- For mypy errors, ensure proper type annotations and imports
+- All type annotations use forward references (`"ClassName"`) due to circular imports
 
 ## Notes
 
-- If a rule here conflicts with the TODO’s explicit instructions, the TODO wins.
-- When in doubt, keep changes small and well-documented, and add a TODO for follow-ups.
+- This repository follows incremental development: only the models layer is complete
+- No API server can be started yet - just model validation and testing  
+- Docker/Redis integration comes in later TODO items
+- Always validate changes with the pyrun script before committing
+- Coverage goal is 90%+ for implemented layers

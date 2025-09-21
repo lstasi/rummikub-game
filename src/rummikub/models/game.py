@@ -3,8 +3,11 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from .tiles import TileInstance
 
 from .base import generate_uuid
 from .exceptions import GameStateError
@@ -122,7 +125,7 @@ class Pool:
             raise GameStateError(f"Pool must contain exactly 106 tiles, got {len(self.tile_ids)}")
         
         # Count tiles by type
-        numbered_tile_counts = {}  # (number, color) -> count
+        numbered_tile_counts: Dict[tuple[int, str], int] = {}  # (number, color) -> count
         joker_count = 0
         
         for tile_id in self.tile_ids:
@@ -257,7 +260,6 @@ class GameState:
         Raises:
             GameStateError: If tile ownership is invalid
         """
-        from .tiles import TileInstance
         
         # Collect all tile IDs from all sources
         all_tile_ids = set()
