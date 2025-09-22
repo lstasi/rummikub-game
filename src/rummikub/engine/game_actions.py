@@ -21,6 +21,48 @@ class GameActions:
     """Class containing all game actions that can be performed."""
     
     @staticmethod
+    def join_player(game_state: GameState, player_name: str) -> GameState:
+        """Join a player to the game by updating an existing empty player slot.
+        
+        Args:
+            game_state: Current game state
+            player_name: Display name for the player
+            
+        Returns:
+            Updated GameState with player joined
+            
+        Raises:
+            GameNotStartedError: If game is not in waiting_for_players status
+            GameFullError: If all player slots are already joined
+            InvalidMoveError: If player name already exists in the game
+        """
+        from ..models.exceptions import GameFullError
+        
+        if game_state.status != GameStatus.WAITING_FOR_PLAYERS:
+            raise GameNotStartedError("Can only join games waiting for players")
+        
+        # Check if player with this name already exists
+        for existing_player in game_state.players:
+            if existing_player.name == player_name:
+                raise InvalidMoveError(f"Player with name '{player_name}' already in game")
+        
+        # Find first unjoined player slot
+        unjoined_player = None
+        for player in game_state.players:
+            if not player.joined:
+                unjoined_player = player
+                break
+        
+        if unjoined_player is None:
+            raise GameFullError("All player slots are already joined")
+        
+        # Update the player to be joined with the name
+        updated_player = unjoined_player.update(name=player_name, joined=True)
+        
+        # Update game state with joined player
+        return game_state.update_player(unjoined_player.id, updated_player)
+    
+    @staticmethod
     def execute_play_action(game_state: GameState, player_id: str, action: PlayTilesAction) -> GameState:
         """Execute tile play action (placement and/or rearrangement).
         
@@ -62,53 +104,22 @@ class GameActions:
         # 4. Check initial meld requirement if not yet met
         GameRules.validate_initial_meld_requirement(player, newly_played_tiles, action.melds)
         
-        # 5. Update player rack using game rules
-        updated_rack = GameRules.update_player_rack(player, newly_played_tiles)
-        
-        # Update player with new rack and mark initial meld as met if tiles were played
-        updated_player = type(player)(
-            id=player.id,
-            name=player.name,
-            initial_meld_met=player.initial_meld_met or bool(newly_played_tiles),
-            rack=updated_rack
+        # 5. Update player rack and mark initial meld as met if tiles were played
+        updated_player = player.remove_tiles_from_rack(newly_played_tiles).update(
+            initial_meld_met=player.initial_meld_met or bool(newly_played_tiles)
         )
-        
-        # Update players list
-        updated_players = []
-        for p in game_state.players:
-            if p.id == player_id:
-                updated_players.append(updated_player)
-            else:
-                updated_players.append(p)
         
         # 6. Update board with new melds
-        new_board = type(game_state.board)(melds=action.melds)
+        new_board = game_state.board.replace_melds(action.melds)
         
-        new_game_state = GameState(
-            game_id=game_state.game_id,
-            players=updated_players,
-            pool=game_state.pool,
-            board=new_board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        # 7. Update game state with player and board changes
+        game_state = game_state.update_player(player_id, updated_player).update_board(new_board)
         
         # Check win condition using game rules
         if GameRules.check_win_condition(updated_player):
-            new_game_state = GameState(
-                game_id=new_game_state.game_id,
-                players=new_game_state.players,
-                pool=new_game_state.pool,
-                board=new_game_state.board,
-                current_player_index=new_game_state.current_player_index,
-                status=GameStatus.COMPLETED,
-                created_at=new_game_state.created_at,
-                updated_at=new_game_state.updated_at
-            )
+            game_state = game_state._copy_with(status=GameStatus.COMPLETED)
             
-        return new_game_state
+        return game_state
 
     @staticmethod
     def execute_draw_action(game_state: GameState, player_id: str) -> GameState:
@@ -141,36 +152,11 @@ class GameActions:
         # Use pool method and game rules for draw action:
         drawn_tile, updated_pool = game_state.pool.get_random_tile()
         
-        # Add drawn tile to player's rack using game rules
-        updated_rack = GameRules.add_tile_to_rack(player, drawn_tile)
+        # Add drawn tile to player's rack
+        updated_player = player.add_tile_to_rack(drawn_tile)
         
-        # Update player with new rack
-        updated_player = type(player)(
-            id=player.id,
-            name=player.name,
-            initial_meld_met=player.initial_meld_met,
-            rack=updated_rack
-        )
-        
-        # Update players list
-        updated_players = []
-        for p in game_state.players:
-            if p.id == player_id:
-                updated_players.append(updated_player)
-            else:
-                updated_players.append(p)
-        
-        # Return updated game state
-        return GameState(
-            game_id=game_state.game_id,
-            players=updated_players,
-            pool=updated_pool,
-            board=game_state.board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        # Update game state with player and pool changes
+        return game_state.update_player(player_id, updated_player)._copy_with(pool=updated_pool)
 
     @staticmethod
     def advance_turn(game_state: GameState) -> GameState:
@@ -193,25 +179,16 @@ class GameActions:
                 from ..models.exceptions import GameFinishedError
                 raise GameFinishedError("Game is already finished")
         
-        # Check for winner before advancing turn (as requested in feedback)        
-        updated_game_state = GameRules.check_for_winner(game_state)
+        # Check for winner before advancing turn
+        game_state = GameRules.check_for_winner(game_state)
         
         # If game is completed due to winner, return immediately
-        if updated_game_state.status == GameStatus.COMPLETED:
-            return updated_game_state
+        if game_state.status == GameStatus.COMPLETED:
+            return game_state
                 
         next_index = (game_state.current_player_index + 1) % len(game_state.players)
         
-        return GameState(
-            game_id=game_state.game_id,
-            players=game_state.players,
-            pool=game_state.pool,
-            board=game_state.board,
-            current_player_index=next_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        return game_state._copy_with(current_player_index=next_index)
 
     @staticmethod
     def _can_player_act(game_state: GameState, player_id: str) -> bool:

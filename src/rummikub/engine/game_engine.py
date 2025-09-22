@@ -38,76 +38,27 @@ class GameEngine:
             
         Raises:
             GameStateError: If num_players is not between 2 and 4
-        """
-        from ..models.game import Pool
-        
-        # Validate num_players but don't strictly enforce it - allow flexibility
-        if not (2 <= num_players <= 4):
-            raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
-        
-        # Create the base game state (generates UUID internally)
-        game_state = GameState.create_new_game(None, num_players)
-        
-        # Initialize the complete tile pool
-        pool = Pool.create_full_pool()
-        
-        # Return game state with initialized pool
-        return GameState(
-            game_id=game_state.game_id,
-            players=game_state.players,
-            pool=pool,
-            board=game_state.board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        """        
+        # Use the new static method for creating initialized games
+        return GameState.create_initialized_game(num_players)
 
     def join_game(self, game_state: GameState, player_name: str) -> GameState:
-        """Join a player to the game and deal tiles from pool.
+        """Join a player to the game by updating an existing player slot.
         
         Args:
             game_state: Current game state
-            player_name: Display name for the player (used as ID if unique)
+            player_name: Display name for the player
             
         Returns:
-            Updated GameState with new player added and tiles dealt
+            Updated GameState with player joined
             
         Raises:
-            GameFullError: If game already has maximum players
+            GameFullError: If all player slots are already joined
             GameNotStartedError: If game is not in waiting_for_players status
             InvalidMoveError: If player name already exists in the game
         """
-        if game_state.status != GameStatus.WAITING_FOR_PLAYERS:
-            raise GameNotStartedError("Can only join games waiting for players")
-            
-        if len(game_state.players) >= 4:
-            raise GameFullError("Game already has maximum 4 players")
-        
-        # Check if player with this name already exists (by name, not ID)
-        for existing_player in game_state.players:
-            if existing_player.name == player_name:
-                raise InvalidMoveError(f"Player with name '{player_name}' already in game")
-        
-        # Create rack from pool (handles tile dealing and pool reduction)
-        player_rack, updated_pool = game_state.pool.create_rack(14)
-        
-        # Create new player (generates UUID internally)
-        new_player = Player.create_player(player_name, player_rack)
-        
-        # Add player to game
-        updated_players = game_state.players + [new_player]
-        
-        return GameState(
-            game_id=game_state.game_id,
-            players=updated_players,
-            pool=updated_pool,
-            board=game_state.board,
-            current_player_index=game_state.current_player_index,
-            status=game_state.status,
-            created_at=game_state.created_at,
-            updated_at=game_state.updated_at
-        )
+        from .game_actions import GameActions
+        return GameActions.join_player(game_state, player_name)
     
     def start_game(self, game_state: GameState) -> GameState:
         """Explicitly start the game after all players are added.

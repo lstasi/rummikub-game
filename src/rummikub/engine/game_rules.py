@@ -108,20 +108,6 @@ class GameRules:
                 raise InitialMeldNotMetError("Initial meld must total at least 30 points")
     
     @staticmethod
-    def update_player_rack(player: Player, newly_played_tiles: Set[UUID]) -> Rack:
-        """Update player's rack by removing played tiles.
-        
-        Args:
-            player: Player whose rack to update
-            newly_played_tiles: Set of tile IDs to remove
-            
-        Returns:
-            Updated Rack with tiles removed
-        """
-        remaining_tiles = [tid for tid in player.rack.tile_ids if tid not in newly_played_tiles]
-        return Rack(tile_ids=remaining_tiles)
-    
-    @staticmethod
     def validate_pool_not_empty(game_state: GameState) -> None:
         """Validate that the pool is not empty.
         
@@ -134,20 +120,6 @@ class GameRules:
         from ..models.exceptions import PoolEmptyError
         if len(game_state.pool.tile_ids) == 0:
             raise PoolEmptyError("Cannot draw from empty pool")
-    
-    @staticmethod
-    def add_tile_to_rack(player: Player, tile_id: UUID) -> Rack:
-        """Add a drawn tile to player's rack.
-        
-        Args:
-            player: Player whose rack to update
-            tile_id: ID of tile to add
-            
-        Returns:
-            Updated Rack with new tile
-        """
-        updated_rack_tiles = player.rack.tile_ids + [tile_id]
-        return Rack(tile_ids=updated_rack_tiles)
     
     @staticmethod
     def check_for_winner(game_state: GameState) -> GameState:
