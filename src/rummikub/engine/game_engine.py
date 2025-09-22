@@ -169,7 +169,7 @@ class GameEngine:
         Returns:
             True if melds total >= 30 points
         """
-        return GameRules.validate_initial_meld(tiles, melds)
+        return GameRules.validate_initial_meld({str(t.id): t for t in tiles}, melds)
 
     def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
         """Check if player has emptied their rack and won.

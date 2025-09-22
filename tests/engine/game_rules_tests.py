@@ -220,19 +220,20 @@ class TestGameRulesNewlyPlayedTiles:
         tile5 = TileInstance(kind=NumberedTile(number=5, color=Color.RED))
         tile6 = TileInstance(kind=NumberedTile(number=5, color=Color.BLACK))
         
-        # Existing meld on board
-        existing_meld = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id])
+        # Existing meld on board (needs at least 3 tiles for a run)
+        existing_meld = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id, tile3.id])
         current_board_melds = [existing_meld]
         
-        # Action contains extended existing meld and new meld
-        extended_meld = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id, tile3.id])
-        new_meld = Meld(kind=MeldKind.GROUP, tiles=[tile4.id, tile5.id, tile6.id])
+        # Action contains extended existing meld and new meld (extend with tile4)
+        tile4_new = TileInstance(kind=NumberedTile(number=4, color=Color.RED))
+        extended_meld = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id, tile3.id, tile4_new.id])
+        new_meld = Meld(kind=MeldKind.GROUP, tiles=[tile4.id, tile5.id, tile6.id])  # Using original tile4
         action_melds = [extended_meld, new_meld]
         
         newly_played = GameRules.identify_newly_played_tiles(action_melds, current_board_melds)
         
-        # Should identify tile3 from extended meld and all tiles from new meld
-        expected = {tile3.id, tile4.id, tile5.id, tile6.id}
+        # Should identify tile4_new from extended meld and all tiles from new meld
+        expected = {tile4_new.id, tile4.id, tile5.id, tile6.id}
         assert newly_played == expected
 
 
@@ -493,9 +494,9 @@ class TestGameRulesEdgeCases:
         existing_meld2 = Meld(kind=MeldKind.RUN, tiles=[tile4.id, tile5.id, tile6.id])
         current_board_melds = [existing_meld1, existing_meld2]
         
-        # New arrangement: [1,2] and [3,4,5,6] - but no new tiles added
-        new_meld1 = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id])
-        new_meld2 = Meld(kind=MeldKind.RUN, tiles=[tile3.id, tile4.id, tile5.id, tile6.id])
+        # New arrangement: [1,2,3] and [4,5,6] - same as before, just rearrangement
+        new_meld1 = Meld(kind=MeldKind.RUN, tiles=[tile1.id, tile2.id, tile3.id])
+        new_meld2 = Meld(kind=MeldKind.RUN, tiles=[tile4.id, tile5.id, tile6.id])
         action_melds = [new_meld1, new_meld2]
         
         # This is just rearrangement, no new tiles

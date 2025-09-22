@@ -4,7 +4,7 @@ This module contains all the validation logic for Rummikub game rules,
 separated from the main game engine for better organization.
 """
 
-from typing import List, Set
+from typing import Dict, List, Set
 from uuid import UUID
 
 from ..models import (
@@ -102,7 +102,7 @@ class GameRules:
             
             # We need tile instances for validation - create them
             # TODO: This is a placeholder - need access to tile instances
-            tile_instances: List[TileInstance] = []  # This should come from game state
+            tile_instances: Dict[str, TileInstance] = {}  # This should come from game state
             
             if not GameRules.validate_initial_meld(tile_instances, initial_melds):
                 raise InitialMeldNotMetError("Initial meld must total at least 30 points")
@@ -166,11 +166,11 @@ class GameRules:
         return False
 
     @staticmethod
-    def validate_initial_meld(tiles: List[TileInstance], melds: List[Meld]) -> bool:
+    def validate_initial_meld(tiles: Dict[str, TileInstance], melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points).
         
         Args:
-            tiles: Available tile instances (mapping for validation)
+            tiles: Tile instances mapping (tile_id -> TileInstance)
             melds: Proposed melds to validate
             
         Returns:
@@ -179,8 +179,8 @@ class GameRules:
         if not melds:
             return False
             
-        # Create tile instances mapping for validation
-        tile_instances = {str(tile.id): tile for tile in tiles}
+        # tiles is already the correct mapping format
+        tile_instances = tiles
         
         total_value = 0
         for meld in melds:
