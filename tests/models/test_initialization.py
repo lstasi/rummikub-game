@@ -4,8 +4,7 @@ import pytest
 from uuid import uuid4
 
 from rummikub.models import (
-    Color, NumberedTile, JokerTile, TileInstance, 
-    GameState, Player, Rack, Pool,
+    Color, NumberedTile, JokerTile, GameState, Player, Rack, Pool,
     GameStateError
 )
 

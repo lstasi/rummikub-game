@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from rummikub.models import (
     Color, NumberedTile, JokerTile, TileInstance, Meld, MeldKind,
-    GameState, Player, Rack, Pool, Board,
+    GameState, Player, Pool, Board,
     InvalidMeldError, JokerAssignmentError, GameStateError
 )
 

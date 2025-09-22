@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 from uuid import UUID, uuid4
 
 
