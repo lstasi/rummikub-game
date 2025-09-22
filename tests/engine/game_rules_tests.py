@@ -1,12 +1,12 @@
 """Tests for GameRules class."""
 
 import pytest
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from rummikub.models import (
     GameState, GameStatus, Player, Rack, TileInstance, NumberedTile, 
     JokerTile, Color, Meld, MeldKind,
-    TileNotOwnedError, InitialMeldNotMetError, InvalidBoardStateError
+    TileNotOwnedError, InvalidBoardStateError
 )
 from rummikub.engine import GameRules
 

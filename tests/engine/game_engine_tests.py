@@ -1,12 +1,10 @@
 """Tests for GameEngine class."""
 
 import pytest
-from uuid import uuid4
 
 from rummikub.models import (
     GameState, GameStatus, Player, Rack, TileInstance, NumberedTile, Color,
-    Meld, MeldKind, PlayTilesAction,
-    GameNotStartedError, GameFinishedError, GameStateError
+    Meld, MeldKind, GameNotStartedError, GameFinishedError, GameStateError
 )
 from rummikub.engine import GameEngine
 

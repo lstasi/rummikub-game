@@ -4,15 +4,10 @@ This module contains all the game actions that can be performed,
 separated from the main game engine for better organization.
 """
 
-from typing import Dict, List, Set
-from uuid import UUID
 
 from ..models import (
-    GameState, GameStatus, Player, PlayTilesAction, Rack,
-    # Exceptions
-    GameNotStartedError, NotPlayersTurnError, PlayerNotInGameError,
-    InvalidMoveError, TileNotOwnedError, PoolEmptyError, InvalidBoardStateError,
-    InitialMeldNotMetError
+    GameState, GameStatus, Player, PlayTilesAction, GameNotStartedError, NotPlayersTurnError, PlayerNotInGameError,
+    InvalidMoveError
 )
 from .game_rules import GameRules
 
@@ -116,7 +111,7 @@ class GameActions:
         game_state = game_state.update_player(player_id, updated_player).update_board(new_board)
         
         # Check win condition using game rules
-        if GameRules.check_win_condition(updated_player):
+        if GameRules.check_win_condition(game_state, player_id):
             game_state = game_state._copy_with(status=GameStatus.COMPLETED)
             
         return game_state

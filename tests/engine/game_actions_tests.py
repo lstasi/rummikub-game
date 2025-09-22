@@ -1,14 +1,11 @@
 """Tests for GameActions class."""
 
 import pytest
-from uuid import uuid4
 
 from rummikub.models import (
-    GameState, GameStatus, Player, Rack, TileInstance, NumberedTile, Color,
-    Meld, MeldKind, PlayTilesAction, Pool,
+    GameState, GameStatus, PlayTilesAction, Pool,
     GameNotStartedError, NotPlayersTurnError, PlayerNotInGameError,
-    InvalidMoveError, TileNotOwnedError, PoolEmptyError, InvalidBoardStateError,
-    InitialMeldNotMetError
+    InvalidMoveError, PoolEmptyError
 )
 from rummikub.engine import GameActions
 
