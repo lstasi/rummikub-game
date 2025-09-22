@@ -14,6 +14,11 @@ Always reference these instructions first and fallback to search or bash command
 - **Type Check**: `mypy src/` -- takes ~0.3s, must return "Success: no issues found"
 - **Tests**: `pytest tests/ -v --cov=src --cov-report=term-missing` -- takes ~0.3s, all tests must pass
 
+### Test File Naming Convention
+- **Test files use the `*_tests.py` pattern** (e.g., `model_validation_tests.py`, `game_engine_tests.py`)
+- Configuration in `pytest.ini` specifies `python_files = *_tests.py`
+- Create tests under appropriate subdirectories: `tests/models/`, `tests/engine/`, etc.
+
 ### Development Workflow
 - **ALWAYS use the pyrun script**: `./scripts/pyrun.sh "python code here"` for testing models
 - **Interactive mode**: `./scripts/pyrun.sh -i` for exploration
@@ -116,7 +121,7 @@ pytest
 pytest --cov=src --cov-report=term-missing
 
 # Specific test file
-pytest tests/models/test_model_validation.py -v
+pytest tests/models/model_validation_tests.py -v
 ```
 
 ### Fix Code Quality Issues
@@ -163,8 +168,8 @@ src/rummikub/
 tests/
 ├── conftest.py              # pytest fixtures
 └── models/
-    ├── test_initialization.py   # Basic model creation
-    └── test_model_validation.py # Validation rules
+    ├── initialization_tests.py   # Basic model creation
+    └── model_validation_tests.py # Validation rules
 ```
 
 ### Documentation
@@ -214,7 +219,7 @@ player = Player(id=str(uuid4()), name="Alice")
 - Check that you're in the repository root directory
 
 ### Test Failures
-- Run tests individually: `pytest tests/models/test_model_validation.py::TestClass::test_method -v`
+- Run tests individually: `pytest tests/models/model_validation_tests.py::TestClass::test_method -v`
 - Use `./scripts/pyrun.sh` to reproduce test scenarios interactively
 
 ### Linting/Type Errors
