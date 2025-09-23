@@ -10,7 +10,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Update `doc/ENGINE.md` with responsibilities, API contracts (setup, turn flow, play/rearrange validation, joker retrieval, scoring, end-of-game) and error taxonomy.
 - [x] Implement game engine
   - Create `src/rummikub/engine/` implementing the defined API. Keep logic minimal to pass tests.
-- [ ] Unit tests for engine
+- [x] Unit tests for engine
   - Add tests under `tests/engine/` for legal/illegal plays, rearrangement validity, joker replacement, initial meld, win state.
 - [ ] Define game service
   - Update `doc/SERVICE.md` with Redis schema (keys/data structures), concurrency model (locking/optimistic), and service API.

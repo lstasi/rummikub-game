@@ -8,7 +8,7 @@ from typing import Dict, List, Set
 from uuid import UUID
 
 from ..models import (
-    GameState, Player, Meld, TileInstance, GameStatus, Rack
+    GameState, Player, Meld, TileInstance, GameStatus
 )
 from ..models.exceptions import (
     TileNotOwnedError, InitialMeldNotMetError, InvalidBoardStateError
@@ -102,7 +102,7 @@ class GameRules:
             
             # We need tile instances for validation - create them
             # TODO: This is a placeholder - need access to tile instances
-            tile_instances = []  # This should come from game state
+            tile_instances: Dict[str, TileInstance] = {}  # This should come from game state
             
             if not GameRules.validate_initial_meld(tile_instances, initial_melds):
                 raise InitialMeldNotMetError("Initial meld must total at least 30 points")
@@ -133,7 +133,7 @@ class GameRules:
         """
         # Check if any player has won (empty rack)
         for player in game_state.players:
-            if GameRules.check_win_condition(player):
+            if GameRules.check_win_condition(game_state, player.id):
                 # Player has won - mark game as completed
                 return GameState(
                     game_id=game_state.game_id,
@@ -149,23 +149,28 @@ class GameRules:
         return game_state
 
     @staticmethod
-    def check_win_condition(player: Player) -> bool:
-        """Check if player has won (empty rack).
+    def check_win_condition(game_state: GameState, player_id: str) -> bool:
+        """Check if player has emptied their rack and won.
         
         Args:
-            player: Player to check
+            game_state: Current game state
+            player_id: Player to check for win
             
         Returns:
-            True if player's rack is empty
+            True if player has won (empty rack and initial meld met)
         """
-        return len(player.rack.tile_ids) == 0
-    
+        for player in game_state.players:
+            if player.id == player_id:
+                # Player wins if rack is empty AND initial meld requirement is met
+                return len(player.rack.tile_ids) == 0 and player.initial_meld_met
+        return False
+
     @staticmethod
-    def validate_initial_meld(tiles: List[TileInstance], melds: List[Meld]) -> bool:
+    def validate_initial_meld(tiles: Dict[str, TileInstance], melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points).
         
         Args:
-            tiles: Available tile instances (mapping for validation)
+            tiles: Tile instances mapping (tile_id -> TileInstance)
             melds: Proposed melds to validate
             
         Returns:
@@ -174,8 +179,8 @@ class GameRules:
         if not melds:
             return False
             
-        # Create tile instances mapping for validation
-        tile_instances = {str(tile.id): tile for tile in tiles}
+        # tiles is already the correct mapping format
+        tile_instances = tiles
         
         total_value = 0
         for meld in melds:
@@ -209,20 +214,4 @@ class GameRules:
         elif meld.kind.value == "run":
             return len(meld.tiles) >= 3
             
-        return False
-
-    @staticmethod
-    def check_win_condition(game_state: GameState, player_id: str) -> bool:
-        """Check if player has emptied their rack and won.
-        
-        Args:
-            game_state: Current game state
-            player_id: Player to check for win
-            
-        Returns:
-            True if player has won
-        """
-        for player in game_state.players:
-            if player.id == player_id:
-                return len(player.rack.tile_ids) == 0
         return False
