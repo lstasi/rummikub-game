@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
-from uuid import UUID
 
 from .base import generate_uuid
 from .exceptions import InvalidNumberError
@@ -54,10 +53,16 @@ class TileInstance:
     
     This represents an actual tile in the game, distinguishing between
     the two copies of each numbered tile and the two jokers.
+    
+    For deterministic IDs (recommended), use the factory methods:
+    - create_numbered_tile() for tiles with IDs like "7ra" (Red 7 copy A)
+    - create_joker_tile() for jokers with IDs like "ja" (Joker A)
+    
+    For backward compatibility, the constructor still works with random IDs.
     """
     
     kind: TileKind
-    id: UUID = field(default_factory=generate_uuid)
+    id: str = field(default_factory=lambda: str(generate_uuid()))
     
     def __str__(self) -> str:
         return str(self.kind)
@@ -71,3 +76,40 @@ class TileInstance:
     def is_numbered(self) -> bool:
         """Returns True if this tile is a numbered tile."""
         return isinstance(self.kind, NumberedTile)
+    
+    @classmethod
+    def create_numbered_tile(cls, number: int, color: Color, copy: str) -> "TileInstance":
+        """Create a numbered tile with deterministic ID.
+        
+        Args:
+            number: Tile number (1-13)
+            color: Tile color
+            copy: Copy identifier ('a' or 'b')
+            
+        Returns:
+            TileInstance with ID in format {number}{color_code}{copy}
+        """
+        color_codes = {
+            Color.BLACK: 'k',
+            Color.RED: 'r', 
+            Color.BLUE: 'b',
+            Color.ORANGE: 'o'
+        }
+        
+        tile_id = f"{number}{color_codes[color]}{copy}"
+        kind = NumberedTile(number=number, color=color)
+        return cls(kind=kind, id=tile_id)
+    
+    @classmethod
+    def create_joker_tile(cls, copy: str) -> "TileInstance":
+        """Create a joker tile with deterministic ID.
+        
+        Args:
+            copy: Copy identifier ('a' or 'b')
+            
+        Returns:
+            TileInstance with ID in format j{copy}
+        """
+        tile_id = f"j{copy}"
+        kind = JokerTile()
+        return cls(kind=kind, id=tile_id)

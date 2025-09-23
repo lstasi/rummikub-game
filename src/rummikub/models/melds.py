@@ -3,7 +3,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, TYPE_CHECKING
-from uuid import UUID
 
 if TYPE_CHECKING:
     from .tiles import TileInstance, NumberedTile
@@ -31,8 +30,8 @@ class Meld:
     """
     
     kind: MeldKind
-    tiles: List[UUID]
-    id: UUID = field(default_factory=generate_uuid)
+    tiles: List[str]
+    id: str = field(default_factory=lambda: str(generate_uuid()))
     
     def __post_init__(self):
         """Basic validation that doesn't require tile instances."""
@@ -149,7 +148,7 @@ class Meld:
         available_colors_list = list(available_colors)
         for i, joker in enumerate(jokers):
             assigned_color = available_colors_list[i]
-            joker_assignments[str(joker.id)] = NumberedTile(number=group_number, color=assigned_color)
+            joker_assignments[joker.id] = NumberedTile(number=group_number, color=assigned_color)
         
         return joker_assignments
     
@@ -198,7 +197,7 @@ class Meld:
         joker_assignments = {}
         for pos, joker in jokers:
             expected_number = expected_start + pos
-            joker_assignments[str(joker.id)] = NumberedTile(number=expected_number, color=run_color)
+            joker_assignments[joker.id] = NumberedTile(number=expected_number, color=run_color)
         
         return joker_assignments
     
@@ -213,7 +212,7 @@ class Meld:
         """
         from .tiles import NumberedTile
         
-        tiles = [tile_instances[str(tile_id)] for tile_id in self.tiles]
+        tiles = [tile_instances[tile_id] for tile_id in self.tiles]
         
         if self.kind == MeldKind.GROUP:
             joker_assignments = self._assign_jokers_in_group(tiles)
@@ -224,7 +223,7 @@ class Meld:
         for tile in tiles:
             if tile.is_joker:
                 # Get joker's assigned value
-                assigned_tile = joker_assignments[str(tile.id)]
+                assigned_tile = joker_assignments[tile.id]
                 total += assigned_tile.number
             else:
                 # Regular numbered tile
