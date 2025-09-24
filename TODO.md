@@ -12,7 +12,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Create `src/rummikub/engine/` implementing the defined API. Keep logic minimal to pass tests.
 - [x] Unit tests for engine
   - Add tests under `tests/engine/` for legal/illegal plays, rearrangement validity, joker replacement, initial meld, win state.
-- [ ] Define game service
+- [x] Define game service
   - Update `doc/SERVICE.md` with Redis schema (keys/data structures), concurrency model (locking/optimistic), and service API.
 - [ ] Implement game service
   - Create `src/rummikub/service/` with Redis integration; DI-friendly to use `fakeredis` in tests.
