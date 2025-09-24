@@ -85,16 +85,16 @@ If a lock is already held, the operation waits for the lock to be released.
 ### Lock Implementation
 
 ```python
-async def acquire_game_lock(game_id: str, session_id: str) -> bool:
+def acquire_game_lock(game_id: str, session_id: str) -> bool:
     """Acquire exclusive lock on game for updates. Blocks until available."""
     lock_key = f"rummikub:games:{game_id}:lock"
     while True:
-        acquired = await redis.set(lock_key, session_id, nx=True, ex=5)
+        acquired = redis.set(lock_key, session_id, nx=True, ex=5)
         if acquired:
             return True
-        await asyncio.sleep(0.1)  # Wait before retry
+        time.sleep(0.1)  # Wait before retry
 
-async def release_game_lock(game_id: str, session_id: str) -> bool:
+def release_game_lock(game_id: str, session_id: str) -> bool:
     """Release lock if owned by session."""
     lock_key = f"rummikub:games:{game_id}:lock"
     lua_script = """
@@ -104,7 +104,7 @@ async def release_game_lock(game_id: str, session_id: str) -> bool:
         return 0
     end
     """
-    return await redis.eval(lua_script, [lock_key], [session_id])
+    return redis.eval(lua_script, [lock_key], [session_id])
 ```
 
 ### Conflict Resolution
@@ -123,24 +123,20 @@ class GameService:
     """Main service interface for game management."""
     
     # Game Lifecycle
-    async def create_game(self, num_players: int) -> GameState:
+    def create_game(self, num_players: int) -> GameState:
         """Create new game and return state."""
     
-    async def join_game(self, game_id: str, player_name: str) -> GameState:
-        """Join game by game ID."""
+    def join_game(self, game_id: str, player_name: str) -> GameState:
+        """Join game by game ID. Returns curated game state for the player.
+        If player already joined, returns their current game view."""
     
-    async def get_game(self, game_id: str) -> GameState | None:
-        """Retrieve current game state."""
-    
-    async def start_game(self, game_id: str) -> GameState:
-        """Start game if all players joined."""
+    def get_game(self, game_id: str, player_name: str) -> GameState | None:
+        """Retrieve curated game state for the specific player.
+        Only shows the player's own rack, other players show rack count only."""
     
     # Game Actions
-    async def execute_turn(self, game_id: str, player_id: str, action: Action) -> GameState:
-        """Execute player action (play tiles or draw)."""
-    
-    async def get_current_player(self, game_id: str) -> str:
-        """Get ID of player whose turn it is."""
+    def execute_turn(self, game_id: str, player_id: str, action: Action) -> GameState:
+        """Execute player action (play tiles or draw). Includes player validation."""
 ```
 
 ### Exception Mapping
@@ -168,22 +164,20 @@ class ConcurrentModificationError(ServiceError):
 
 ### Join Game Flow
 
-1. Player provides game_id + display name
-2. Service retrieves game state
-3. Service validates game accepts more players
-4. Service updates game via engine (`join_game`)
-5. Service persists updated game state
-6. Return updated `GameState`
+1. Service calls join_game with game_id and player_name
+2. If player already joined, identify player and return curated game state
+3. If game already started, identify player by name and return curated game state
+4. Otherwise, add player to game and return curated game state
+5. Curated state shows only the player's rack, other players show rack count only
 
 ### Turn Execution Flow
 
 1. Acquire game lock
 2. Retrieve current game state
-3. Validate it's player's turn
-4. Execute action via engine
-5. Persist updated game state
-6. Release game lock
-7. Return updated `GameState`
+3. Execute action via engine (includes player validation)
+4. Persist updated game state
+5. Release game lock
+6. Return updated curated `GameState`
 
 ## Persistence Strategy
 
@@ -201,7 +195,7 @@ class ConcurrentModificationError(ServiceError):
 ## Implementation Notes
 
 - **DI-Friendly**: Service accepts Redis client interface for testing
-- **Async/Await**: All operations are async for high concurrency
+- **Synchronous**: All operations are synchronous for simplicity
 - **Type Safety**: Full type annotations with proper generics
 - **Error Handling**: Comprehensive exception hierarchy
 - **Testing**: Use `fakeredis` for unit tests, real Redis for integration
