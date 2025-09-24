@@ -1,34 +1,23 @@
 # Game Service (Redis)
 
-Service layer that provides persistence, concurrency control, and session management for multiplayer Rummikub games using Redis as the backend.
+Service layer that provides persistence and concurrency control for multiplayer Rummikub games using Redis as the backend.
 
 ## Overview
 
 The service layer acts as a bridge between the stateless game engine and persistent storage, providing:
 - Game state persistence and retrieval
 - Concurrency control for multiplayer games
-- Session management with invite codes
-- Player connection tracking
 - Game lifecycle management
 
 ## Redis Schema
 
 ### Key Naming Conventions
 
-All Redis keys follow a hierarchical pattern for organization and efficient querying:
+Simple key structure for storing game states:
 
 ```
 rummikub:games:{game_id}                    # Game state (JSON)
 rummikub:games:{game_id}:lock               # Game-level lock (STRING)
-rummikub:games:{game_id}:players            # Player connection status (HASH) 
-rummikub:games:{game_id}:tiles              # Tile instances (HASH)
-
-rummikub:invites:{invite_code}              # Invite code mapping (STRING -> game_id)
-rummikub:player_sessions:{session_id}       # Session to player/game mapping (HASH)
-
-rummikub:game_index:waiting                 # Games waiting for players (SET)
-rummikub:game_index:active                  # Games in progress (SET)
-rummikub:game_index:completed               # Completed games (SET with expiry)
 ```
 
 ### Data Structures
@@ -74,81 +63,36 @@ rummikub:game_index:completed               # Completed games (SET with expiry)
 
 #### 2. Game Lock (`rummikub:games:{game_id}:lock`)
 **Type**: STRING  
-**TTL**: 30 seconds (auto-release on timeout)  
+**TTL**: 5 seconds (auto-release on timeout)  
 **Content**: Session ID of lock holder
 
-Used for optimistic locking during game state updates.
-
-#### 3. Player Connections (`rummikub:games:{game_id}:players`)
-**Type**: HASH  
-**TTL**: No expiry (cleaned up with game)  
-**Fields**: `player_id -> last_seen_timestamp`
-
-Tracks which players are currently connected/active.
-
-#### 4. Tile Instances (`rummikub:games:{game_id}:tiles`)
-**Type**: HASH  
-**TTL**: No expiry (cleaned up with game)  
-**Fields**: `tile_id -> tile_json`
-
-Stores individual tile instances for efficient lookup:
-```json
-{
-  "tile-uuid-1": {
-    "id": "tile-uuid-1",
-    "kind": {
-      "type": "numbered",
-      "number": 7,
-      "color": "red"
-    }
-  },
-  "tile-uuid-2": {
-    "id": "tile-uuid-2", 
-    "kind": {
-      "type": "joker"
-    }
-  }
-}
-```
-
-#### 5. Invite Codes (`rummikub:invites:{invite_code}`)
-**Type**: STRING  
-**TTL**: 1 hour  
-**Content**: `game_id`
-
-6-character alphanumeric codes for easy game joining.
-
-#### 6. Player Sessions (`rummikub:player_sessions:{session_id}`)
-**Type**: HASH  
-**TTL**: 4 hours  
-**Fields**: 
-```
-player_id: "player-uuid"
-game_id: "game-uuid"
-player_name: "Display Name"
-connected_at: "2024-01-01T12:00:00Z"
-```
+Used for exclusive locking during game state updates.
 
 ## Concurrency Model
 
-### Optimistic Locking Strategy
+### Simple Locking Strategy
 
-The service uses optimistic locking to handle concurrent game state modifications:
+The service uses a simple lock-read-action-save-unlock pattern to handle concurrent game state modifications:
 
-1. **Read Phase**: Client reads current game state
-2. **Lock Acquisition**: Acquire exclusive lock with short TTL (30s)
-3. **Validation**: Verify game state hasn't changed since read
-4. **Update**: Apply changes atomically
-5. **Lock Release**: Release lock immediately after update
+1. **Lock**: Acquire exclusive lock on game
+2. **Read**: Read current game state from Redis
+3. **Action**: Apply game engine operations
+4. **Save**: Write updated game state to Redis
+5. **Unlock**: Release the exclusive lock
+
+If a lock is already held, the operation waits for the lock to be released.
 
 ### Lock Implementation
 
 ```python
 async def acquire_game_lock(game_id: str, session_id: str) -> bool:
-    """Acquire exclusive lock on game for updates."""
+    """Acquire exclusive lock on game for updates. Blocks until available."""
     lock_key = f"rummikub:games:{game_id}:lock"
-    acquired = await redis.set(lock_key, session_id, nx=True, ex=30)
-    return acquired
+    while True:
+        acquired = await redis.set(lock_key, session_id, nx=True, ex=5)
+        if acquired:
+            return True
+        await asyncio.sleep(0.1)  # Wait before retry
 
 async def release_game_lock(game_id: str, session_id: str) -> bool:
     """Release lock if owned by session."""
@@ -165,10 +109,9 @@ async def release_game_lock(game_id: str, session_id: str) -> bool:
 
 ### Conflict Resolution
 
-- **Read conflicts**: Return current state, let client retry
-- **Write conflicts**: Fail fast with `ConcurrentModificationError`
-- **Lock timeouts**: Automatic cleanup, but log for monitoring
-- **Network partitions**: Use heartbeat to detect disconnected players
+- **Lock contention**: Operations wait for lock release with automatic retry
+- **Lock timeouts**: Very short TTL (5 seconds) ensures quick recovery from failures
+- **Network failures**: Automatic lock cleanup prevents deadlocks
 
 ## Service API Contracts
 
@@ -180,38 +123,24 @@ class GameService:
     """Main service interface for game management."""
     
     # Game Lifecycle
-    async def create_game(self, num_players: int, creator_session: str) -> tuple[GameState, str]:
-        """Create new game and return state + invite code."""
+    async def create_game(self, num_players: int) -> GameState:
+        """Create new game and return state."""
     
-    async def join_game(self, invite_code: str, player_name: str, session_id: str) -> GameState:
-        """Join game via invite code."""
+    async def join_game(self, game_id: str, player_name: str) -> GameState:
+        """Join game by game ID."""
     
     async def get_game(self, game_id: str) -> GameState | None:
         """Retrieve current game state."""
     
-    async def start_game(self, game_id: str, session_id: str) -> GameState:
+    async def start_game(self, game_id: str) -> GameState:
         """Start game if all players joined."""
     
     # Game Actions
-    async def execute_turn(self, game_id: str, player_id: str, action: Action, session_id: str) -> GameState:
+    async def execute_turn(self, game_id: str, player_id: str, action: Action) -> GameState:
         """Execute player action (play tiles or draw)."""
     
     async def get_current_player(self, game_id: str) -> str:
         """Get ID of player whose turn it is."""
-    
-    # Session Management  
-    async def create_session(self, player_name: str) -> str:
-        """Create new player session."""
-    
-    async def get_session(self, session_id: str) -> PlayerSession | None:
-        """Retrieve session information."""
-    
-    async def update_player_heartbeat(self, game_id: str, player_id: str) -> None:
-        """Update player's last-seen timestamp."""
-    
-    # Game Discovery
-    async def list_waiting_games(self) -> list[GameState]:
-        """List games waiting for players."""
 ```
 
 ### Exception Mapping
@@ -225,63 +154,36 @@ class ServiceError(Exception):
 class GameNotFoundError(ServiceError):
     """Game ID not found in Redis."""
 
-class InvalidInviteCodeError(ServiceError): 
-    """Invite code expired or invalid."""
-
 class ConcurrentModificationError(ServiceError):
     """Game modified by another player."""
-
-class SessionExpiredError(ServiceError):
-    """Player session no longer valid."""
-
-class PlayerDisconnectedError(ServiceError):
-    """Player connection lost."""
 ```
 
-## Session and Invite Flows
+## Game Management Flows
 
 ### Game Creation Flow
 
-1. Player creates session → `session_id`
-2. Service creates game via engine → `GameState`
-3. Service persists game state to Redis
-4. Service generates 6-character invite code
-5. Service stores invite mapping: `invite_code → game_id`
-6. Service adds game to waiting index
-7. Return `GameState` + `invite_code`
+1. Service creates game via engine → `GameState`
+2. Service persists game state to Redis with game_id as key
+3. Return `GameState`
 
 ### Join Game Flow
 
-1. Player provides invite code + display name
-2. Service validates invite code exists and not expired
-3. Service retrieves game state
-4. Service validates game accepts more players
-5. Service creates player session
-6. Service updates game via engine (`join_game`)
-7. Service persists updated game state
-8. Service adds player to connection tracking
-9. Return updated `GameState`
+1. Player provides game_id + display name
+2. Service retrieves game state
+3. Service validates game accepts more players
+4. Service updates game via engine (`join_game`)
+5. Service persists updated game state
+6. Return updated `GameState`
 
 ### Turn Execution Flow
 
-1. Validate session and player permissions
-2. Acquire game lock for current player
-3. Retrieve current game state
-4. Validate it's player's turn
-5. Execute action via engine
-6. Persist updated game state
-7. Update player heartbeat
-8. Release game lock
-9. Broadcast state change to all players
-10. Return updated `GameState`
-
-### Disconnect Handling
-
-- **Heartbeat mechanism**: Players send periodic heartbeats
-- **Timeout detection**: Mark players inactive after 2 minutes
-- **Game suspension**: Pause game if any player disconnects
-- **Reconnection**: Allow players to rejoin with session ID
-- **Abandonment**: End game if player absent > 10 minutes
+1. Acquire game lock
+2. Retrieve current game state
+3. Validate it's player's turn
+4. Execute action via engine
+5. Persist updated game state
+6. Release game lock
+7. Return updated `GameState`
 
 ## Persistence Strategy
 
@@ -289,24 +191,12 @@ class PlayerDisconnectedError(ServiceError):
 
 - **Atomicity**: Use Redis transactions for multi-key updates
 - **Durability**: Configure Redis persistence (AOF + RDB)
-- **Backup**: Regular snapshots of game states
-- **Recovery**: Replay mechanism for incomplete games
+- **Lock safety**: Short TTL prevents deadlocks
 
 ### Memory Management
 
 - **TTL Policy**: Completed games expire after 24 hours
-- **Cleanup**: Background job removes abandoned games
-- **Compression**: Use JSON compression for large game states
-- **Indexing**: Maintain efficient lookup indices
-
-### Monitoring Points
-
-- Game creation/completion rates
-- Average game duration
-- Player connection stability
-- Lock contention metrics
-- Redis memory usage
-- Error rates by exception type
+- **Cleanup**: Automatic cleanup of expired games
 
 ## Implementation Notes
 
@@ -314,6 +204,5 @@ class PlayerDisconnectedError(ServiceError):
 - **Async/Await**: All operations are async for high concurrency
 - **Type Safety**: Full type annotations with proper generics
 - **Error Handling**: Comprehensive exception hierarchy
-- **Logging**: Structured logging for observability
 - **Testing**: Use `fakeredis` for unit tests, real Redis for integration
 - **Configuration**: Environment-based Redis connection settings
