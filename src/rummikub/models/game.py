@@ -18,7 +18,7 @@ from .melds import Meld
 class Rack:
     """A player's rack containing their tiles (hidden from other players)."""
     
-    tile_ids: List[UUID] = field(default_factory=list)
+    tile_ids: List[str] = field(default_factory=list)
     
     def __len__(self) -> int:
         """Return the number of tiles in the rack."""
@@ -72,7 +72,7 @@ class Pool:
         Raises:
             GameStateError: If pool creation fails validation
         """
-        from .tiles import TileInstance, NumberedTile, JokerTile, Color
+        from .tiles import TileInstance, Color
         
         tile_instances = {}
         tile_ids = []
@@ -80,15 +80,15 @@ class Pool:
         # Create 104 numbered tiles (2 of each number 1-13 in each of 4 colors)
         for color in Color:
             for number in range(1, 14):  # 1-13 inclusive
-                for copy in range(2):  # 2 copies of each
-                    tile = TileInstance(kind=NumberedTile(number=number, color=color))
-                    tile_instances[str(tile.id)] = tile
+                for copy_idx, copy in enumerate(['a', 'b']):  # 2 copies of each
+                    tile = TileInstance.create_numbered_tile(number=number, color=color, copy=copy)
+                    tile_instances[tile.id] = tile
                     tile_ids.append(tile.id)
         
         # Create 2 joker tiles
-        for _ in range(2):
-            joker = TileInstance(kind=JokerTile())
-            tile_instances[str(joker.id)] = joker
+        for copy in ['a', 'b']:
+            joker = TileInstance.create_joker_tile(copy=copy)
+            tile_instances[joker.id] = joker
             tile_ids.append(joker.id)
         
         # Create pool and validate
@@ -127,7 +127,7 @@ class Pool:
         
         return rack, updated_pool
         
-    def get_random_tile(self) -> tuple[UUID, "Pool"]:
+    def get_random_tile(self) -> tuple[str, "Pool"]:
         """Get a random tile from this pool.
         
         Returns:
@@ -181,11 +181,10 @@ class Pool:
         joker_count = 0
         
         for tile_id in self.tile_ids:
-            tile_id_str = str(tile_id)
-            if tile_id_str not in tile_instances:
+            if tile_id not in tile_instances:
                 raise GameStateError(f"Tile {tile_id} not found in tile_instances")
                 
-            tile = tile_instances[tile_id_str]
+            tile = tile_instances[tile_id]
             
             if isinstance(tile.kind, NumberedTile):
                 key = (tile.kind.number, tile.kind.color)
@@ -522,8 +521,8 @@ class GameState:
                 all_tile_ids.add(tile_id)
         
         # Verify all tiles in tile_instances are accounted for
-        expected_tile_ids = set(str(tid) for tid in tile_instances.keys())
-        actual_tile_ids = set(str(tid) for tid in all_tile_ids)
+        expected_tile_ids = set(tile_instances.keys())
+        actual_tile_ids = set(all_tile_ids)
         
         if expected_tile_ids != actual_tile_ids:
             missing = expected_tile_ids - actual_tile_ids

@@ -78,14 +78,14 @@ The implementation is organized as follows:
 
 - Color: enum {BLACK, RED, BLUE, ORANGE}
 - TileKind: union of NumberedTile(number: int, color: Color) | Joker
-- TileInstance: { id: UUID, kind: TileKind }
+- TileInstance: { id: string, kind: TileKind } (ID format: numbered="7ra", joker="ja")
 - MeldKind: GROUP | RUN
 - Meld:
   - kind: MeldKind
   - tiles: ordered list of TileInstance ids (ordered for runs; order not significant for groups but retained for simplicity)
   - derived (runtime): resolved logical assignment for jokers
-- Rack: { tile_ids: multiset[UUID] }
-- Pool: multiset[UUID]
+- Rack: { tile_ids: multiset[string] }
+- Pool: multiset[string]
 - Board: list of Melds
 - Player: { id: str, name?: str, initial_meld_met: bool, rack: Rack }
 - Turn: { player_id: str, action: Action }
@@ -102,8 +102,10 @@ Note: Actions are limited to two types: type = "play_tiles" (may include rearran
 - All entities must serialize to JSON deterministically with stable ids.
 - Simple dataclass-based approach with utility functions:
   - Color as string enum: "black" | "red" | "blue" | "orange"
-  - Tile: { id: string-uuid, kind: { type: "numbered", number: int, color: Color } | { type: "joker" } }
-  - Meld: { id: string-uuid, kind: "group"|"run", tiles: string-uuid[] }
+  - Tile: { id: string, kind: { type: "numbered", number: int, color: Color } | { type: "joker" } }
+    - Tile IDs are now human-readable: numbered tiles like "7ra", jokers like "ja"
+  - Meld: { id: string, kind: "group"|"run", tiles: string[] }
+    - Meld IDs still use UUIDs, but tile references use the new format
   - Board: { melds: Meld[] }
 	- Player: { id: string, name?: string, initial_meld_met: boolean, rack: Rack }
 	- GameState: see below
@@ -298,3 +300,37 @@ Implement as pure functions within models:
 - Prefer Pydantic models for validation and JSON I/O; dataclasses if simpler.
 - Use UUIDv4 for tile and meld identifiers.
 - Maintain tile order in runs; for groups, order doesn’t matter but preserve stable ordering for deterministic serialization.
+
+---
+
+## UPDATED: New Tile ID System  
+
+**Replaced UUIDs with human-readable deterministic IDs for tiles:**
+
+### Format
+- **Numbered tiles**: `{number}{color_code}{copy}`
+  - Examples: `7ra` (Red 7 copy A), `13kb` (Black 13 copy B)
+- **Jokers**: `j{copy}`
+  - Examples: `ja` (Joker A), `jb` (Joker B)
+
+### Color Codes
+- `k` = black
+- `r` = red  
+- `b` = blue
+- `o` = orange
+
+(Lowercase to avoid confusion between 'O' and '0')
+
+### Benefits
+- **Human-readable**: `7ra` vs `f47ac10b-58cc-4372-a567-0e02b2c3d479`
+- **Deterministic**: Same tiles always get same IDs
+- **Sortable**: Natural ordering by number, color, copy
+- **Compact**: 3-4 characters vs 36 for UUID
+- **Debug-friendly**: Easy to identify tiles in logs and tests
+
+### Implementation Details
+- Pool creation generates exactly 106 tiles: 104 numbered (2×13×4) + 2 jokers
+- All tiles have predictable, stable IDs for reproducible testing
+- Backward compatibility maintained: existing test code continues to work
+- Factory methods: `TileInstance.create_numbered_tile()`, `TileInstance.create_joker_tile()`
+- Meld IDs still use UUIDs for cross-session uniqueness
