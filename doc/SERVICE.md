@@ -134,6 +134,9 @@ class GameService:
         """Retrieve curated game state for the specific player.
         Only shows the player's own rack, other players show rack count only."""
     
+    def get_games(self) -> list[GameState]:
+        """Retrieve list of all stored games."""
+    
     # Game Actions
     def execute_turn(self, game_id: str, player_id: str, action: Action) -> GameState:
         """Execute player action (play tiles or draw). Includes player validation."""
