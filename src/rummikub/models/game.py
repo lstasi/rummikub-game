@@ -48,7 +48,7 @@ class Rack:
 class Pool:
     """The pool of face-down tiles available to draw from."""
     
-    tile_ids: List[UUID] = field(default_factory=list)
+    tile_ids: List[str] = field(default_factory=list)
     
     def __len__(self) -> int:
         """Return the number of tiles in the pool."""
@@ -266,7 +266,7 @@ class Player:
     joined: bool = False
     
     @classmethod
-    def create_player(cls, name: str = None, rack: Rack = None) -> "Player":
+    def create_player(cls, name: Optional[str] = None, rack: Optional[Rack] = None) -> "Player":
         """Create a new player with UUID and optional rack.
         
         Args:
@@ -291,21 +291,22 @@ class Player:
         Returns:
             New Player instance with updates applied
         """
-        # Get current values
-        current_values = {
-            'id': self.id,
-            'name': self.name,
-            'initial_meld_met': self.initial_meld_met,
-            'rack': self.rack,
-            'joined': self.joined
-        }
+        # Get current values and apply changes
+        id = changes.get('id', self.id)
+        name = changes.get('name', self.name)
+        initial_meld_met = changes.get('initial_meld_met', self.initial_meld_met)
+        rack = changes.get('rack', self.rack)
+        joined = changes.get('joined', self.joined)
         
-        # Apply changes
-        current_values.update(changes)
-        
-        return Player(**current_values)
+        return Player(
+            id=id,
+            name=name,
+            initial_meld_met=initial_meld_met,
+            rack=rack,
+            joined=joined
+        )
     
-    def remove_tiles_from_rack(self, tile_ids: set[UUID]) -> "Player":
+    def remove_tiles_from_rack(self, tile_ids: set[str]) -> "Player":
         """Remove specified tiles from rack and return updated player.
         
         Args:
@@ -318,7 +319,7 @@ class Player:
         new_rack = Rack(tile_ids=remaining_tiles)
         return self.update(rack=new_rack)
     
-    def add_tile_to_rack(self, tile_id: UUID) -> "Player":
+    def add_tile_to_rack(self, tile_id: str) -> "Player":
         """Add a tile to rack and return updated player.
         
         Args:
@@ -386,7 +387,7 @@ class GameState:
         )
     
     @classmethod
-    def create_new_game(cls, game_id: UUID = None, num_players: int = None) -> "GameState":
+    def create_new_game(cls, game_id: Optional[UUID] = None, num_players: Optional[int] = None) -> "GameState":
         """Create a new game state with auto-generated or provided UUID.
         
         Args:
@@ -451,22 +452,32 @@ class GameState:
         Returns:
             New GameState instance with changes applied
         """
-        current_values = {
-            'game_id': self.game_id,
-            'players': self.players,
-            'current_player_index': self.current_player_index,
-            'pool': self.pool,
-            'board': self.board,
-            'created_at': self.created_at,
-            'updated_at': datetime.utcnow(),
-            'status': self.status,
-            'winner_player_id': self.winner_player_id,
-            'id': self.id,
-            'num_players': self.num_players
-        }
+        # Apply changes to current values
+        game_id = changes.get('game_id', self.game_id)
+        players = changes.get('players', self.players)
+        current_player_index = changes.get('current_player_index', self.current_player_index)
+        pool = changes.get('pool', self.pool)
+        board = changes.get('board', self.board)
+        created_at = changes.get('created_at', self.created_at)
+        updated_at = changes.get('updated_at', datetime.utcnow())
+        status = changes.get('status', self.status)
+        winner_player_id = changes.get('winner_player_id', self.winner_player_id)
+        id = changes.get('id', self.id)
+        num_players = changes.get('num_players', self.num_players)
         
-        current_values.update(changes)
-        return GameState(**current_values)
+        return GameState(
+            game_id=game_id,
+            players=players,
+            current_player_index=current_player_index,
+            pool=pool,
+            board=board,
+            created_at=created_at,
+            updated_at=updated_at,
+            status=status,
+            winner_player_id=winner_player_id,
+            id=id,
+            num_players=num_players
+        )
     
     def validate_player_count(self) -> bool:
         """Validate that the number of players is within the valid range.

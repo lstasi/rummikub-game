@@ -5,7 +5,6 @@ separated from the main game engine for better organization.
 """
 
 from typing import Dict, List, Set
-from uuid import UUID
 
 from ..models import (
     GameState, Player, Meld, TileInstance, GameStatus
@@ -27,7 +26,7 @@ class GameRules:
                 game_state.players[game_state.current_player_index].id == player_id)
     
     @staticmethod
-    def validate_tile_ownership(player: Player, newly_played_tiles: Set[UUID]) -> None:
+    def validate_tile_ownership(player: Player, newly_played_tiles: Set[str]) -> None:
         """Validate that player owns all newly played tiles.
         
         Args:
@@ -43,7 +42,7 @@ class GameRules:
                 raise TileNotOwnedError(f"Player {player.id} does not own tile {tile_id}")
     
     @staticmethod
-    def identify_newly_played_tiles(action_melds: List[Meld], current_board_melds: List[Meld]) -> Set[UUID]:
+    def identify_newly_played_tiles(action_melds: List[Meld], current_board_melds: List[Meld]) -> Set[str]:
         """Identify which tiles are newly played (not already on board).
         
         Args:
@@ -81,7 +80,7 @@ class GameRules:
                 raise InvalidBoardStateError(f"Invalid meld structure: {meld}")
     
     @staticmethod
-    def validate_initial_meld_requirement(player: Player, newly_played_tiles: Set[UUID], 
+    def validate_initial_meld_requirement(player: Player, newly_played_tiles: Set[str], 
                                         action_melds: List[Meld]) -> None:
         """Validate initial meld requirement if not yet met.
         
