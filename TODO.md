@@ -18,7 +18,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Create `src/rummikub/service/` with Redis integration; DI-friendly to use `fakeredis` in tests.
 - [x] Unit tests for service
   - Add tests under `tests/service/` covering lifecycle, state transitions, concurrency edges, and error handling.
-- [ ] Define API interface
+- [x] Define API interface
   - Update `doc/API.md` with REST/WebSocket endpoints, request/response contracts, and error model.
 - [ ] Implement API interface
   - Create `src/rummikub/api/` using FastAPI. Wire endpoints to service. Include OpenAPI and validation.
