@@ -20,9 +20,9 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Add tests under `tests/service/` covering lifecycle, state transitions, concurrency edges, and error handling.
 - [x] Define API interface
   - Update `doc/API.md` with REST/WebSocket endpoints, request/response contracts, and error model.
-- [ ] Implement API interface
+- [x] Implement API interface
   - Create `src/rummikub/api/` using FastAPI. Wire endpoints to service. Include OpenAPI and validation.
-- [ ] Unit tests for API
+- [x] Unit tests for API
   - Add tests under `tests/api/` using FastAPI TestClient for success and failure paths.
 - [ ] Dockerize and compose
   - Add Dockerfile and docker-compose.yml (API + Redis). Update `doc/DEPLOYMENT.md` with run instructions.
