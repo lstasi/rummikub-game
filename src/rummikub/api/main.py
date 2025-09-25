@@ -3,7 +3,7 @@
 from typing import cast
 
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ..models import PlayTilesAction, DrawAction
@@ -79,7 +79,7 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
                 kind=meld.kind.value,
                 tiles=meld.tiles
             )
-            for meld in game_state.board
+            for meld in game_state.board.melds
         ]
     )
     
@@ -94,14 +94,14 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
         
         # Only show full rack to the requesting player
         if requesting_player_id and player.id == requesting_player_id:
-            player_response.rack = RackResponse(tiles=player.rack.tiles)
+            player_response.rack = RackResponse(tiles=player.rack.tile_ids)
         else:
-            player_response.rack_size = len(player.rack.tiles)
+            player_response.rack_size = len(player.rack.tile_ids)
         
         players.append(player_response)
     
     return GameStateResponse(
-        game_id=game_state.game_id,
+        game_id=str(game_state.game_id),
         status=game_state.status.value,
         num_players=len(game_state.players),
         players=players,
@@ -175,7 +175,7 @@ async def get_game_state(
                 break
         
         if not target_game:
-            raise HTTPException(status_code=404, detail="Game not found")
+            raise GameNotFoundError("Game not found")
         
         # Find the player with this ID
         target_player = None
@@ -185,17 +185,18 @@ async def get_game_state(
                 break
         
         if target_player is None:
-            raise HTTPException(status_code=403, detail="Player not in game")
+            from ..models.exceptions import PlayerNotInGameError
+            raise PlayerNotInGameError("Player not in game")
         
         # Now get the curated game state  
         game_state = game_service.get_game(game_id, cast(str, target_player.name))
         if not game_state:
-            raise HTTPException(status_code=404, detail="Game not found")
+            raise GameNotFoundError("Game not found")
         
         return _convert_game_state_to_response(game_state, player_id)
     
     except GameNotFoundError:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise GameNotFoundError("Game not found")
 
 
 @app.post("/api/v1/games/{game_id}/players/{player_id}/actions/play", response_model=GameStateResponse)
