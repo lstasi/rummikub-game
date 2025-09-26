@@ -24,7 +24,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Create `src/rummikub/api/` using FastAPI. Wire endpoints to service. Include OpenAPI and validation.
 - [x] Unit tests for API
   - Add tests under `tests/api/` using FastAPI TestClient for success and failure paths.
-- [ ] Dockerize and compose
+- [x] Dockerize and compose
   - Add Dockerfile and docker-compose.yml (API + Redis). Update `doc/DEPLOYMENT.md` with run instructions.
 - [ ] UI definition
   - Update `doc/UI.md` with minimal UI flows and API usage.
