@@ -77,7 +77,34 @@ docker compose --env-file .env up
 
 ## Development Setup
 
+### Option 1: Using main.py (Recommended)
+
 For local development with hot-reload:
+
+```bash
+# Install dependencies locally
+pip install -e .[dev]
+
+# Run Redis in Docker
+docker compose up redis -d
+
+# Run API locally with hot reload
+python main.py --reload
+
+# Or run on a different port
+python main.py --reload --port 8080
+
+# Or allow external connections
+python main.py --reload --host 0.0.0.0
+```
+
+The `main.py` script provides:
+- Automatic Redis connection checking
+- Hot reload support for development
+- Configurable host and port
+- Helpful error messages and setup instructions
+
+### Option 2: Using uvicorn directly
 
 ```bash
 # Install dependencies locally

@@ -18,14 +18,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files first
-COPY pyproject.toml ./
+COPY requirements.txt pyproject.toml ./
 
-# Install Python dependencies directly from pyproject.toml
+# Install Python dependencies from requirements.txt
 RUN pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org \
-    "fastapi>=0.115" \
-    "uvicorn[standard]>=0.30" \
-    "pydantic>=2.8" \
-    "redis>=5.0"
+    -r requirements.txt
 
 # Copy source code
 COPY src/ ./src/
