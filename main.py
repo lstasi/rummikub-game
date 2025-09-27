@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Main entry point for running the Rummikub API server locally.
+Main entry point for running the Rummikub application locally.
 
-This script is intended for local development. It assumes Redis is running
+This script serves both the API backend and the UI frontend. It assumes Redis is running
 on the default port (6379). For Docker setup, use docker-compose.yml instead.
 
 Usage:
@@ -23,6 +23,11 @@ sys.path.insert(0, str(src_path))
 
 try:
     import uvicorn
+    from fastapi import FastAPI, Request
+    from fastapi.responses import FileResponse, HTMLResponse
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
+    from rummikub.api.main import app as api_app
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Please install dependencies with: pip install -e .[dev]")
@@ -47,9 +52,83 @@ def check_redis_connection():
         return False
 
 
+def create_app():
+    """Create the combined FastAPI application with API and UI."""
+    
+    # Create main app
+    app = FastAPI(
+        title="Rummikub Game",
+        description="Multiplayer Rummikub game with web interface",
+        version="1.0.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
+    
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Mount static files
+    static_path = Path(__file__).parent / "static"
+    if static_path.exists():
+        app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+    
+    # Mount API routes under /api/v1
+    app.mount("/api", api_app)
+    
+    @app.get("/", response_class=HTMLResponse)
+    async def root(request: Request):
+        """Root endpoint that serves appropriate page based on query parameters."""
+        params = dict(request.query_params)
+        page = params.get('page', 'home')
+        
+        # Map page names to HTML files
+        page_files = {
+            'home': 'home.html',
+            'create': 'create.html', 
+            'join': 'join.html',
+            'game': 'game.html',
+            'win': 'win.html'
+        }
+        
+        # Default to home if invalid page
+        html_file = page_files.get(page, 'home.html')
+        
+        # Serve the appropriate HTML file
+        pages_path = Path(__file__).parent / "static" / "pages" / html_file
+        if pages_path.exists():
+            return FileResponse(str(pages_path), media_type="text/html")
+        else:
+            # Fallback to a simple HTML response if file doesn't exist
+            return HTMLResponse(
+                content=f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Rummikub Online</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body>
+                    <h1>Rummikub Online</h1>
+                    <p>Page not found: {page}</p>
+                    <a href="/">Go Home</a>
+                </body>
+                </html>
+                """,
+                status_code=404
+            )
+    
+    return app
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Run Rummikub API server locally",
+        description="Run Rummikub application with API and UI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -96,26 +175,30 @@ Examples:
             print("\nUse --skip-redis-check to start anyway (API will fail on Redis operations)")
             return 1
     
-    print("\n🚀 Starting Rummikub API server...")
+    print("\n🚀 Starting Rummikub application...")
     print(f"   URL: http://{args.host}:{args.port}")
-    print(f"   Docs: http://{args.host}:{args.port}/docs")
+    print(f"   Game UI: http://{args.host}:{args.port}")
+    print(f"   API Docs: http://{args.host}:{args.port}/docs")
     print(f"   Reload: {'enabled' if args.reload else 'disabled'}")
     print(f"   Log level: {args.log_level}")
     
     if args.reload:
-        print("\n💡 Hot reload is enabled - changes to Python files will restart the server")
+        print("\n💡 Hot reload is enabled - changes will restart the server")
     
     print("\nPress Ctrl+C to stop the server\n")
     
+    # Create the combined app
+    app = create_app()
+    
     # Run the server
     uvicorn.run(
-        "rummikub.api:app",
+        app,
         host=args.host,
         port=args.port,
         reload=args.reload,
         log_level=args.log_level,
         access_log=True,
-        reload_dirs=["src"] if args.reload else None,
+        reload_dirs=["src", "static"] if args.reload else None,
     )
     
     return 0

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rummikub Game</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/game.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <div class="game-info">
+                <h1>Rummikub Game</h1>
+                <div id="game-status" class="game-status"></div>
+            </div>
+            <div class="players-info">
+                <div id="players-list" class="players-list"></div>
+            </div>
+            <div class="game-controls">
+                <button id="leave-game-btn" class="btn btn-danger">Leave Game</button>
+            </div>
+        </header>
+        
+        <main class="game-main">
+            <section class="board-section">
+                <h2>Board</h2>
+                <div id="board" class="board">
+                    <div id="no-melds" class="no-melds">No melds on board yet</div>
+                </div>
+            </section>
+            
+            <section class="rack-section">
+                <h2>Your Tiles</h2>
+                <div id="rack" class="rack"></div>
+                <div class="rack-controls">
+                    <button id="sort-by-number" class="btn btn-small">Sort by Number</button>
+                    <button id="sort-by-color" class="btn btn-small">Sort by Color</button>
+                </div>
+            </section>
+            
+            <section class="actions-section">
+                <div class="tile-actions">
+                    <button id="push-to-board-btn" class="btn btn-primary" disabled>Push to Board</button>
+                    <button id="remove-from-board-btn" class="btn btn-secondary" disabled>Remove from Board</button>
+                    <button id="break-meld-btn" class="btn btn-warning" disabled>Break Meld</button>
+                    <button id="group-meld-btn" class="btn btn-info" disabled>Group Meld</button>
+                </div>
+                <div class="turn-actions">
+                    <button id="draw-tile-btn" class="btn btn-draw">Draw Tile</button>
+                    <button id="end-turn-btn" class="btn btn-success" disabled>End Turn</button>
+                </div>
+            </section>
+        </main>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <p>Loading game...</p>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/game.js"></script>
+</body>
+</html>

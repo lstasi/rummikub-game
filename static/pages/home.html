@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rummikub Online - Home</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Rummikub Online</h1>
+        </header>
+        
+        <main>
+            <section class="games-section">
+                <h2>Available Games</h2>
+                <div id="games-list" class="games-list">
+                    <!-- Games will be loaded here -->
+                </div>
+                <div id="no-games" class="no-games" style="display: none;">
+                    <p>No games available</p>
+                </div>
+            </section>
+            
+            <section class="actions-section">
+                <div class="action-buttons">
+                    <button id="create-game-btn" class="btn btn-primary">Create New Game</button>
+                    <button id="join-game-btn" class="btn btn-secondary">Join Existing Game</button>
+                    <button id="how-to-play-btn" class="btn btn-tertiary">How to Play</button>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/home.js"></script>
+</body>
+</html>
