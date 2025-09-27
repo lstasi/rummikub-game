@@ -81,7 +81,7 @@ class GameRules:
     
     @staticmethod
     def validate_initial_meld_requirement(player: Player, newly_played_tiles: Set[str], 
-                                        action_melds: List[Meld]) -> None:
+                                         action_melds: List[Meld]) -> None:
         """Validate initial meld requirement if not yet met.
         
         Args:

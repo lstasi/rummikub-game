@@ -83,9 +83,13 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
         ]
     )
     
-    # Convert players with privacy controls
+    # Convert players with privacy controls - only include joined players
     players = []
     for player in game_state.players:
+        # Skip players who haven't joined yet (name is None)
+        if player.name is None:
+            continue
+            
         player_response = PlayerResponse(
             id=player.id,
             name=player.name,
@@ -114,7 +118,7 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
     )
 
 
-@app.get("/api/v1/games", response_model=GamesListResponse)
+@app.get("/games", response_model=GamesListResponse)
 async def get_games(game_service: GameServiceDep) -> GamesListResponse:
     """Retrieve a list of all available games."""
     games = game_service.get_games()
@@ -127,7 +131,7 @@ async def get_games(game_service: GameServiceDep) -> GamesListResponse:
     return GamesListResponse(games=game_responses)
 
 
-@app.post("/api/v1/games", response_model=GameStateResponse)
+@app.post("/games", response_model=GameStateResponse)
 async def create_game(
     request: CreateGameRequest,
     game_service: GameServiceDep
@@ -137,7 +141,7 @@ async def create_game(
     return _convert_game_state_to_response(game_state)
 
 
-@app.post("/api/v1/games/{game_id}/players", response_model=GameStateResponse)
+@app.post("/games/{game_id}/players", response_model=GameStateResponse)
 async def join_game(
     game_id: str,
     request: JoinGameRequest,
@@ -156,30 +160,20 @@ async def join_game(
     return _convert_game_state_to_response(game_state, requesting_player)
 
 
-@app.get("/api/v1/games/{game_id}/players/{player_id}", response_model=GameStateResponse)
+@app.get("/games/{game_id}/players/{player_id}", response_model=GameStateResponse)
 async def get_game_state(
     game_id: str,
     player_id: str,
     game_service: GameServiceDep
 ) -> GameStateResponse:
     """Get game state for a specific player."""
-    # We need to find the player name from the player_id first
-    # Load the game state and find the player
     try:
-        # First try to load the game without curation
-        games = game_service.get_games()
-        target_game = None
-        for game in games:
-            if game.game_id == game_id:
-                target_game = game
-                break
-        
-        if not target_game:
-            raise GameNotFoundError("Game not found")
+        # Load the game state directly
+        game_state = game_service._load_game_state(game_id)
         
         # Find the player with this ID
         target_player = None
-        for player in target_game.players:
+        for player in game_state.players:
             if player.id == player_id:
                 target_player = player
                 break
@@ -188,18 +182,16 @@ async def get_game_state(
             from ..models.exceptions import PlayerNotInGameError
             raise PlayerNotInGameError("Player not in game")
         
-        # Now get the curated game state  
-        game_state = game_service.get_game(game_id, cast(str, target_player.name))
-        if not game_state:
-            raise GameNotFoundError("Game not found")
+        # Get curated game state for this player
+        curated_game_state = game_service._curate_game_state_for_player(game_state, player_id)
         
-        return _convert_game_state_to_response(game_state, player_id)
+        return _convert_game_state_to_response(curated_game_state, player_id)
     
     except GameNotFoundError:
         raise GameNotFoundError("Game not found")
 
 
-@app.post("/api/v1/games/{game_id}/players/{player_id}/actions/play", response_model=GameStateResponse)
+@app.post("/games/{game_id}/players/{player_id}/actions/play", response_model=GameStateResponse)
 async def play_tiles(
     game_id: str,
     player_id: str,
@@ -226,7 +218,7 @@ async def play_tiles(
     return _convert_game_state_to_response(game_state, player_id)
 
 
-@app.post("/api/v1/games/{game_id}/players/{player_id}/actions/draw", response_model=GameStateResponse)
+@app.post("/games/{game_id}/players/{player_id}/actions/draw", response_model=GameStateResponse)
 async def draw_tile(
     game_id: str,
     player_id: str,

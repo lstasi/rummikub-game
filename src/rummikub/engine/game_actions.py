@@ -55,7 +55,25 @@ class GameActions:
         updated_player = unjoined_player.update(name=player_name, joined=True)
         
         # Update game state with joined player
-        return game_state.update_player(unjoined_player.id, updated_player)
+        updated_game_state = game_state.update_player(unjoined_player.id, updated_player)
+        
+        # Check if all players have joined and automatically start the game
+        all_joined = all(player.joined for player in updated_game_state.players)
+        if all_joined:
+            # All players have joined, start the game
+            from ..models import GameState
+            updated_game_state = GameState(
+                game_id=updated_game_state.game_id,
+                players=updated_game_state.players,
+                pool=updated_game_state.pool,
+                board=updated_game_state.board,
+                current_player_index=0,  # First player starts
+                status=GameStatus.IN_PROGRESS,
+                created_at=updated_game_state.created_at,
+                updated_at=updated_game_state.updated_at
+            )
+        
+        return updated_game_state
     
     @staticmethod
     def execute_play_action(game_state: GameState, player_id: str, action: PlayTilesAction) -> GameState:
@@ -113,8 +131,10 @@ class GameActions:
         # Check win condition using game rules
         if GameRules.check_win_condition(game_state, player_id):
             game_state = game_state._copy_with(status=GameStatus.COMPLETED)
-            
-        return game_state
+            return game_state
+        
+        # Advance turn after successful play (only if game not completed)
+        return GameActions.advance_turn(game_state)
 
     @staticmethod
     def execute_draw_action(game_state: GameState, player_id: str) -> GameState:
@@ -151,7 +171,10 @@ class GameActions:
         updated_player = player.add_tile_to_rack(drawn_tile)
         
         # Update game state with player and pool changes
-        return game_state.update_player(player_id, updated_player)._copy_with(pool=updated_pool)
+        updated_game_state = game_state.update_player(player_id, updated_player)._copy_with(pool=updated_pool)
+        
+        # Advance turn after drawing a tile
+        return GameActions.advance_turn(updated_game_state)
 
     @staticmethod
     def advance_turn(game_state: GameState) -> GameState:

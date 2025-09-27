@@ -95,15 +95,29 @@ const API = {
         
         try {
             const response = await fetch(url, config);
-            const data = await response.json();
+            let data;
+            
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                data = { error: { message: 'Invalid JSON response', raw: await response.text() } };
+            }
             
             if (!response.ok) {
-                throw new Error(data.error?.message || `HTTP ${response.status}`);
+                const error = new Error(data.error?.message || `HTTP ${response.status}`);
+                error.response = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data
+                };
+                error.requestUrl = url;
+                error.requestConfig = config;
+                throw error;
             }
             
             return data;
         } catch (error) {
-            console.error('API request failed:', error);
+            console.error('API request failed:', { url, config, error });
             throw error;
         }
     },

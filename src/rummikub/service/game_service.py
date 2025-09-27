@@ -106,14 +106,14 @@ class GameService:
         """
         game_keys = self.redis.keys("rummikub:games:*")
         # Filter out lock keys
-        game_keys = [key for key in game_keys if not key.decode().endswith(":lock")]
+        game_keys = [key for key in game_keys if not key.endswith(":lock")]
         
         games = []
         for key in game_keys:
             try:
                 game_data = self.redis.get(key)
                 if game_data:
-                    game_state = self._deserialize_game_state(game_data.decode())
+                    game_state = self._deserialize_game_state(str(game_data))
                     games.append(game_state)
             except Exception:
                 # Skip corrupted games
@@ -174,7 +174,7 @@ class GameService:
         if not game_data:
             raise GameNotFoundError(f"Game {game_id} not found")
         
-        return self._deserialize_game_state(game_data.decode())
+        return self._deserialize_game_state(str(game_data))
     
     def _save_game_state(self, game_state: GameState) -> None:
         """Save game state to Redis.
@@ -374,11 +374,11 @@ class _GameLock:
                     return 0
                 end
                 """
-                self.redis.eval(lua_script, 1, self.lock_key, self.session_id)
+                self.redis.eval(lua_script, 1, self.lock_key, self.session_id)  # type: ignore
             except Exception:
                 # Fallback for test environments or Redis versions without Lua support
                 # Check if we still own the lock and delete
                 current_owner = self.redis.get(self.lock_key)
-                if current_owner and current_owner.decode() == self.session_id:
+                if current_owner and str(current_owner) == self.session_id:
                     self.redis.delete(self.lock_key)
             self.acquired = False

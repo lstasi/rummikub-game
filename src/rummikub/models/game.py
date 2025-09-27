@@ -340,7 +340,7 @@ class GameStatus(str, Enum):
     COMPLETED = "completed"
 
 
-@dataclass
+@dataclass 
 class GameState:
     """Complete state of a Rummikub game."""
     
@@ -383,7 +383,8 @@ class GameState:
         return cls(
             players=players,
             pool=pool,
-            num_players=num_players
+            num_players=num_players,
+            tile_instances=tile_instances
         )
     
     @classmethod
