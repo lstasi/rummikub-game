@@ -7,7 +7,7 @@ and manages game state transitions.
 from typing import List
 
 from ..models import (
-    GameState, GameStatus, PlayTilesAction, TileInstance, Meld,
+    GameState, GameStatus, PlayTilesAction, Meld,
     # Exceptions
     GameNotStartedError, GameFinishedError,
     GameStateError
@@ -159,17 +159,16 @@ class GameEngine:
         """
         return GameActions.execute_draw_action(game_state, player_id)
 
-    def validate_initial_meld(self, tiles: List[TileInstance], melds: List[Meld]) -> bool:
+    def validate_initial_meld(self, melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points).
         
         Args:
-            tiles: Available tile instances
             melds: Proposed melds to validate
             
         Returns:
             True if melds total >= 30 points
         """
-        return GameRules.validate_initial_meld({t.id: t for t in tiles}, melds)
+        return GameRules.validate_initial_meld(melds)
 
     def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
         """Check if player has emptied their rack and won.

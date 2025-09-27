@@ -1,6 +1,5 @@
 """Main FastAPI application with API endpoints."""
 
-from typing import cast
 
 
 from fastapi import FastAPI

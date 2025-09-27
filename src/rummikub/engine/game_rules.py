@@ -4,10 +4,10 @@ This module contains all the validation logic for Rummikub game rules,
 separated from the main game engine for better organization.
 """
 
-from typing import Dict, List, Set
+from typing import List, Set
 
 from ..models import (
-    GameState, Player, Meld, TileInstance, GameStatus
+    GameState, Player, Meld, GameStatus
 )
 from ..models.exceptions import (
     TileNotOwnedError, InitialMeldNotMetError, InvalidBoardStateError
@@ -99,11 +99,7 @@ class GameRules:
                 if any(tile_id in newly_played_tiles for tile_id in meld.tiles):
                     initial_melds.append(meld)
             
-            # We need tile instances for validation - create them
-            # TODO: This is a placeholder - need access to tile instances
-            tile_instances: Dict[str, TileInstance] = {}  # This should come from game state
-            
-            if not GameRules.validate_initial_meld(tile_instances, initial_melds):
+            if not GameRules.validate_initial_meld(initial_melds):
                 raise InitialMeldNotMetError("Initial meld must total at least 30 points")
     
     @staticmethod
@@ -165,11 +161,10 @@ class GameRules:
         return False
 
     @staticmethod
-    def validate_initial_meld(tiles: Dict[str, TileInstance], melds: List[Meld]) -> bool:
+    def validate_initial_meld(melds: List[Meld]) -> bool:
         """Check if proposed melds meet initial meld requirement (>= 30 points).
         
         Args:
-            tiles: Tile instances mapping (tile_id -> TileInstance)
             melds: Proposed melds to validate
             
         Returns:
@@ -177,17 +172,14 @@ class GameRules:
         """
         if not melds:
             return False
-            
-        # tiles is already the correct mapping format
-        tile_instances = tiles
         
         total_value = 0
         for meld in melds:
             try:
                 # Validate the meld structure first
-                meld.validate_with_tiles(tile_instances)
+                meld.validate()
                 # Get the value of the meld
-                meld_value = meld.get_value(tile_instances)
+                meld_value = meld.get_value()
                 total_value += meld_value
             except Exception:
                 # If meld is invalid, the initial meld is invalid
