@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Over - Rummikub Online</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Game Over!</h1>
+        </header>
+        
+        <main>
+            <div class="winner-section">
+                <div id="winner-announcement" class="winner-announcement">
+                    <h2 id="winner-text">Player Won!</h2>
+                    <div class="celebration">🎉</div>
+                </div>
+            </div>
+            
+            <div class="scores-section">
+                <h3>Final Scores</h3>
+                <div id="final-scores" class="scores-list"></div>
+            </div>
+            
+            <div class="game-summary">
+                <div id="game-duration" class="summary-item"></div>
+                <div id="total-turns" class="summary-item"></div>
+            </div>
+            
+            <div class="actions-section">
+                <div class="action-buttons">
+                    <button id="play-again-btn" class="btn btn-primary">Play Again</button>
+                    <button id="new-game-btn" class="btn btn-secondary">New Game</button>
+                    <button id="home-btn" class="btn btn-tertiary">Go Home</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/win.js"></script>
+</body>
+</html>

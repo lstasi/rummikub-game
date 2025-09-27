@@ -1,0 +1,201 @@
+// Main JavaScript utilities for Rummikub Online
+
+// API base URL
+const API_BASE = '/api/v1';
+
+// Utility functions
+const Utils = {
+    // Get URL parameters
+    getUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const result = {};
+        for (const [key, value] of params) {
+            result[key] = value;
+        }
+        return result;
+    },
+    
+    // Navigate to a page with optional parameters
+    navigateTo(page, params = {}) {
+        const url = new URL(window.location.origin);
+        url.searchParams.set('page', page);
+        
+        for (const [key, value] of Object.entries(params)) {
+            if (value) {
+                url.searchParams.set(key, value);
+            }
+        }
+        
+        window.location.href = url.toString();
+    },
+    
+    // Show/hide loading state
+    showLoading(element, show = true) {
+        if (typeof element === 'string') {
+            element = document.getElementById(element);
+        }
+        if (element) {
+            element.style.display = show ? 'block' : 'none';
+        }
+    },
+    
+    // Show error message
+    showError(element, message) {
+        if (typeof element === 'string') {
+            element = document.getElementById(element);
+        }
+        if (element) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+    },
+    
+    // Hide error message
+    hideError(element) {
+        if (typeof element === 'string') {
+            element = document.getElementById(element);
+        }
+        if (element) {
+            element.style.display = 'none';
+        }
+    },
+    
+    // Format timestamp
+    formatTime(isoString) {
+        const date = new Date(isoString);
+        const now = new Date();
+        const diff = Math.floor((now - date) / 60000); // minutes
+        
+        if (diff < 1) return 'Just now';
+        if (diff < 60) return `${diff}m ago`;
+        if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+        return date.toLocaleDateString();
+    },
+    
+    // Generate short ID for display
+    shortId(id) {
+        return id ? id.substring(0, 8) : '';
+    }
+};
+
+// API wrapper
+const API = {
+    async request(endpoint, options = {}) {
+        const url = `${API_BASE}${endpoint}`;
+        const config = {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            ...options
+        };
+        
+        if (config.body && typeof config.body === 'object') {
+            config.body = JSON.stringify(config.body);
+        }
+        
+        try {
+            const response = await fetch(url, config);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error?.message || `HTTP ${response.status}`);
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
+    },
+    
+    // Game endpoints
+    async getGames() {
+        return this.request('/games');
+    },
+    
+    async createGame(numPlayers) {
+        return this.request('/games', {
+            method: 'POST',
+            body: { num_players: numPlayers }
+        });
+    },
+    
+    async joinGame(gameId, playerName) {
+        return this.request(`/games/${gameId}/players`, {
+            method: 'POST',
+            body: { player_name: playerName }
+        });
+    },
+    
+    async getGameState(gameId, playerId) {
+        return this.request(`/games/${gameId}/players/${playerId}`);
+    },
+    
+    async playTiles(gameId, playerId, melds) {
+        return this.request(`/games/${gameId}/players/${playerId}/actions/play`, {
+            method: 'POST',
+            body: { melds }
+        });
+    },
+    
+    async drawTile(gameId, playerId) {
+        return this.request(`/games/${gameId}/players/${playerId}/actions/draw`, {
+            method: 'POST',
+            body: {}
+        });
+    }
+};
+
+// Game state management
+const GameState = {
+    current: null,
+    playerId: null,
+    gameId: null,
+    playerName: null,
+    
+    // Save game info to localStorage
+    save() {
+        localStorage.setItem('rummikub_game', JSON.stringify({
+            gameId: this.gameId,
+            playerId: this.playerId,
+            playerName: this.playerName
+        }));
+    },
+    
+    // Load game info from localStorage
+    load() {
+        const saved = localStorage.getItem('rummikub_game');
+        if (saved) {
+            const data = JSON.parse(saved);
+            this.gameId = data.gameId;
+            this.playerId = data.playerId;
+            this.playerName = data.playerName;
+        }
+    },
+    
+    // Clear game info
+    clear() {
+        localStorage.removeItem('rummikub_game');
+        this.current = null;
+        this.playerId = null;
+        this.gameId = null;
+        this.playerName = null;
+    }
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    GameState.load();
+    
+    // Check if we have URL parameters for direct joining
+    const params = Utils.getUrlParams();
+    if (params.game_id && params.name && !params.page) {
+        // Direct join via URL parameters
+        Utils.navigateTo('game', { game_id: params.game_id, name: params.name });
+    }
+});
+
+// Export for global use
+window.Utils = Utils;
+window.API = API;
+window.GameState = GameState;
