@@ -30,3 +30,30 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Update `doc/UI.md` with minimal UI flows and API usage.
 - [ ] Implement UI (MVP)
   - Create basic UI that consumes the API.
+  
+### UI Implementation Phases
+
+#### Phase 1: Simple Button-Based UI (MVP)
+- Basic game screens (home, game list, create/join, lobby)
+- Simple game board and player rack display
+- Button-based interactions (no drag-and-drop):
+  - "Push to Board" - move selected tiles from rack to create new meld
+  - "Remove from Board" - move tiles from board back to rack
+  - "Break Meld" - split existing meld on board into individual tiles
+  - "Group Meld" - combine selected tiles on board into new meld
+- Tile selection via click/tap
+- Turn management (play tiles, draw tile)
+- Basic validation and error messages
+
+#### Phase 2: Enhanced Interactions
+- Drag-and-drop tile placement
+- Visual meld building helpers
+- Improved tile arrangement and sorting
+- Better error feedback and validation
+- Mobile touch optimizations
+
+#### Phase 3: Advanced Features
+- Real-time updates via WebSocket
+- Advanced accessibility features
+- Animations and visual polish
+- Game statistics and history
