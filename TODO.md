@@ -26,7 +26,7 @@ This list includes only pending tasks. Completed items are tracked in the reposi
   - Add tests under `tests/api/` using FastAPI TestClient for success and failure paths.
 - [x] Dockerize and compose
   - Add Dockerfile and docker-compose.yml (API + Redis). Update `doc/DEPLOYMENT.md` with run instructions.
-- [ ] UI definition
+- [x] UI definition
   - Update `doc/UI.md` with minimal UI flows and API usage.
 - [ ] Implement UI (MVP)
   - Create basic UI that consumes the API.
