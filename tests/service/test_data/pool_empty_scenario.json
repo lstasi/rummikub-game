@@ -1,0 +1,27 @@
+{
+  "name": "Pool Empty Scenario", 
+  "description": "A 2-player game where the pool becomes empty after 2 draws",
+  "players": ["Alice", "Bob"],
+  "initial_pool": [
+    "1ra", "2ra", "3ra", "4ra", "5ra", "6ra", "7ra", "8ra", "9ra", "10ra",
+    "11ra", "12ra", "13ra", "1ba", "2ba", "3ba", "4ba", "5ba", "6ba", "7ba",
+    "8ba", "9ba", "10ba", "11ba", "12ba", "13ba", "1ka", "2ka", "3ka", "4ka"
+  ],
+  "initial_racks": {
+    "Alice": ["1ra", "2ra", "3ra", "4ra", "5ra", "6ra", "7ra", "8ra", "9ra", "10ra", "11ra", "12ra", "13ra", "1ba"],
+    "Bob": ["2ba", "3ba", "4ba", "5ba", "6ba", "7ba", "8ba", "9ba", "10ba", "11ba", "12ba", "13ba", "1ka", "2ka"]
+  },
+  "actions": [
+    {
+      "player": "Alice",
+      "type": "draw"
+    },
+    {
+      "player": "Bob", 
+      "type": "draw"
+    }
+  ],
+  "expected_winner": null,
+  "expected_final_status": "in_progress",
+  "expected_pool_empty": true
+}
