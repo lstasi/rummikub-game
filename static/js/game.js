@@ -151,13 +151,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         let errorMessage = fallbackMessage;
         let debugMessage = '';
         
-        if (error.response) {
+        // Extract detailed error message from API response
+        if (error.response && error.response.data && error.response.data.error) {
+            const apiError = error.response.data.error;
+            errorMessage = apiError.message || fallbackMessage;
+            debugMessage = `Code: ${apiError.code}`;
+            if (apiError.details) {
+                debugMessage += `, Details: ${JSON.stringify(apiError.details)}`;
+            }
+        } else if (error.response) {
             debugMessage = `HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}`;
         } else if (error.message) {
             debugMessage = error.message;
         }
         
-        Utils.showError(error, `${errorMessage}\n\nDebug: ${debugMessage}`);
+        // Show error message in the UI error element
+        const errorElement = document.getElementById('error');
+        const fullMessage = debugMessage ? `${errorMessage}\n\nDebug: ${debugMessage}` : errorMessage;
+        Utils.showError(errorElement, fullMessage);
         console.error('API Error:', error);
     }
     
@@ -176,7 +187,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     updateUI();
                 } catch (error) {
-                    console.error('Polling failed:', error);
+                    // Only log polling errors in debug mode or if they're not routine connection issues
+                    if (debugInfo.style.display !== 'none' || !error.response || error.response.status >= 500) {
+                        console.error('Polling failed:', error);
+                    }
                 }
             }
         }, 3000); // Poll every 3 seconds

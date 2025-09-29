@@ -1,7 +1,7 @@
 """Main FastAPI application with API endpoints."""
 
 
-
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +33,9 @@ from .models import (
     RackResponse,
 )
 from .exception_handlers import handle_domain_exceptions
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 # Create FastAPI app
@@ -178,6 +181,7 @@ async def get_game_state(
     game_service: GameServiceDep
 ) -> GameStateResponse:
     """Get game state for a specific player."""
+    # Only log non-routine state requests to reduce polling noise
     try:
         # Load the game state directly
         game_state = game_service._load_game_state(game_id)
@@ -190,6 +194,7 @@ async def get_game_state(
                 break
         
         if target_player is None:
+            logger.warning(f"Player {player_id} not found in game {game_id}")
             from ..models.exceptions import PlayerNotInGameError
             raise PlayerNotInGameError("Player not in game")
         
@@ -199,6 +204,7 @@ async def get_game_state(
         return _convert_game_state_to_response(curated_game_state, player_id, game_state)
     
     except GameNotFoundError:
+        logger.warning(f"Game {game_id} not found for player {player_id}")
         raise GameNotFoundError("Game not found")
 
 
@@ -211,21 +217,29 @@ async def play_tiles(
 ) -> GameStateResponse:
     """Execute a play tiles action."""
     
+    logger.info(f"Player {player_id} attempting to play tiles in game {game_id} with {len(request.melds)} melds")
+    
     # Convert request to domain action
     from ..models.melds import Meld, MeldKind
     melds = []
-    for meld_req in request.melds:
+    for i, meld_req in enumerate(request.melds):
         meld = Meld(
             kind=MeldKind(meld_req.kind),
             tiles=meld_req.tiles
         )
+        logger.debug(f"Meld {i}: {meld_req.kind} with {len(meld_req.tiles)} tiles")
         melds.append(meld)
     
     action = PlayTilesAction(melds=melds)
     
     # Execute action
-    game_state = game_service.execute_turn(game_id, player_id, action)
-    return _convert_game_state_to_response(game_state, player_id)
+    try:
+        game_state = game_service.execute_turn(game_id, player_id, action)
+        logger.info(f"Play tiles action successful for player {player_id} in game {game_id}")
+        return _convert_game_state_to_response(game_state, player_id)
+    except Exception as e:
+        logger.error(f"Play tiles action failed for player {player_id} in game {game_id}: {e}")
+        raise
 
 
 @app.post("/games/{game_id}/players/{player_id}/actions/draw", response_model=GameStateResponse)
@@ -237,12 +251,19 @@ async def draw_tile(
 ) -> GameStateResponse:
     """Draw a tile from the pool."""
     
+    logger.info(f"Player {player_id} attempting to draw tile in game {game_id}")
+    
     # Create draw action
     action = DrawAction()
     
     # Execute action
-    game_state = game_service.execute_turn(game_id, player_id, action)
-    return _convert_game_state_to_response(game_state, player_id)
+    try:
+        game_state = game_service.execute_turn(game_id, player_id, action)
+        logger.info(f"Draw tile action successful for player {player_id} in game {game_id}")
+        return _convert_game_state_to_response(game_state, player_id)
+    except Exception as e:
+        logger.error(f"Draw tile action failed for player {player_id} in game {game_id}: {e}")
+        raise
 
 
 @app.get("/health")

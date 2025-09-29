@@ -4,6 +4,7 @@ This module contains all the validation logic for Rummikub game rules,
 separated from the main game engine for better organization.
 """
 
+import logging
 from typing import List, Set
 
 from ..models import (
@@ -13,6 +14,9 @@ from ..models.exceptions import (
     TileNotOwnedError, InitialMeldNotMetError, InvalidBoardStateError
 )
 
+# Create logger for game rules validation
+logger = logging.getLogger(__name__)
+
 
 class GameRules:
     """Class containing all Rummikub game rule validations."""
@@ -20,10 +24,22 @@ class GameRules:
     @staticmethod
     def validate_player_turn(game_state: GameState, player_id: str) -> bool:
         """Validate that it's the specified player's turn."""
-        return (game_state.status == GameStatus.IN_PROGRESS and 
-                game_state.current_player_index is not None and
-                len(game_state.players) > game_state.current_player_index and
-                game_state.players[game_state.current_player_index].id == player_id)
+        logger.debug(f"Validating player turn for player {player_id}")
+        logger.debug(f"Game status: {game_state.status}, current_player_index: {game_state.current_player_index}")
+        
+        is_valid = (game_state.status == GameStatus.IN_PROGRESS and 
+                   game_state.current_player_index is not None and
+                   len(game_state.players) > game_state.current_player_index and
+                   game_state.players[game_state.current_player_index].id == player_id)
+        
+        if not is_valid:
+            logger.debug(f"Player turn validation failed for {player_id}: "
+                        f"status={game_state.status}, index={game_state.current_player_index}, "
+                        f"player_count={len(game_state.players)}")
+        else:
+            logger.debug(f"Player turn validation passed for {player_id}")
+        
+        return is_valid
     
     @staticmethod
     def validate_tile_ownership(player: Player, newly_played_tiles: Set[str]) -> None:
@@ -36,10 +52,18 @@ class GameRules:
         Raises:
             TileNotOwnedError: If player doesn't own any of the tiles
         """
+        logger.debug(f"Validating tile ownership for player {player.id}")
+        logger.debug(f"Player has {len(player.rack.tile_ids)} tiles in rack")
+        logger.debug(f"Attempting to play {len(newly_played_tiles)} tiles: {newly_played_tiles}")
+        
         player_tiles = set(player.rack.tile_ids)
         for tile_id in newly_played_tiles:
             if tile_id not in player_tiles:
+                logger.error(f"Tile ownership validation failed: Player {player.id} does not own tile {tile_id}")
+                logger.debug(f"Player tiles: {player_tiles}")
                 raise TileNotOwnedError(f"Player {player.id} does not own tile {tile_id}")
+        
+        logger.debug(f"Tile ownership validation passed for player {player.id}")
     
     @staticmethod
     def identify_newly_played_tiles(action_melds: List[Meld], current_board_melds: List[Meld]) -> Set[str]:
@@ -75,9 +99,16 @@ class GameRules:
         Raises:
             InvalidBoardStateError: If any meld has invalid structure
         """
-        for meld in melds:
+        logger.debug(f"Validating {len(melds)} meld structures")
+        
+        for i, meld in enumerate(melds):
+            logger.debug(f"Validating meld {i}: {meld.kind.value} with {len(meld.tiles)} tiles")
+            
             if not GameRules.validate_meld_structure(meld):
+                logger.error(f"Meld structure validation failed for meld {i}: {meld}")
                 raise InvalidBoardStateError(f"Invalid meld structure: {meld}")
+                
+        logger.debug("All meld structures validated successfully")
     
     @staticmethod
     def validate_initial_meld_requirement(player: Player, newly_played_tiles: Set[str], 
@@ -92,6 +123,10 @@ class GameRules:
         Raises:
             InitialMeldNotMetError: If initial meld requirement not met
         """
+        logger.debug(f"Validating initial meld requirement for player {player.id}")
+        logger.debug(f"Player initial meld met: {player.initial_meld_met}")
+        logger.debug(f"Newly played tiles count: {len(newly_played_tiles)}")
+        
         if not player.initial_meld_met and newly_played_tiles:
             # Get only the melds that contain newly played tiles (initial meld melds)
             initial_melds = []
@@ -99,8 +134,16 @@ class GameRules:
                 if any(tile_id in newly_played_tiles for tile_id in meld.tiles):
                     initial_melds.append(meld)
             
-            if not GameRules.validate_initial_meld(initial_melds):
+            logger.debug(f"Found {len(initial_melds)} melds for initial meld validation")
+            
+            is_valid = GameRules.validate_initial_meld(initial_melds)
+            logger.debug(f"Initial meld validation result: {is_valid}")
+            
+            if not is_valid:
+                logger.error(f"Initial meld requirement not met for player {player.id}")
                 raise InitialMeldNotMetError("Initial meld must total at least 30 points")
+        else:
+            logger.debug("Initial meld requirement check skipped (already met or no new tiles)")
     
     @staticmethod
     def validate_pool_not_empty(game_state: GameState) -> None:
@@ -113,7 +156,12 @@ class GameRules:
             PoolEmptyError: If the pool is empty
         """
         from ..models.exceptions import PoolEmptyError
-        if len(game_state.pool.tile_ids) == 0:
+        
+        pool_size = len(game_state.pool.tile_ids)
+        logger.debug(f"Validating pool not empty: pool has {pool_size} tiles")
+        
+        if pool_size == 0:
+            logger.error("Pool empty validation failed: cannot draw from empty pool")
             raise PoolEmptyError("Cannot draw from empty pool")
     
     @staticmethod
@@ -156,8 +204,14 @@ class GameRules:
         """
         for player in game_state.players:
             if player.id == player_id:
-                # Player wins if rack is empty AND initial meld requirement is met
-                return len(player.rack.tile_ids) == 0 and player.initial_meld_met
+                rack_size = len(player.rack.tile_ids)
+                initial_meld_met = player.initial_meld_met
+                has_won = rack_size == 0 and initial_meld_met
+                
+                logger.debug(f"Win condition check for player {player_id}: "
+                           f"rack_size={rack_size}, initial_meld_met={initial_meld_met}, won={has_won}")
+                
+                return has_won
         return False
 
     @staticmethod
@@ -171,21 +225,28 @@ class GameRules:
             True if melds total >= 30 points
         """
         if not melds:
+            logger.debug("Initial meld validation: no melds provided")
             return False
         
+        logger.debug(f"Validating initial meld with {len(melds)} melds")
+        
         total_value = 0
-        for meld in melds:
+        for i, meld in enumerate(melds):
             try:
                 # Validate the meld structure first
                 meld.validate()
                 # Get the value of the meld
                 meld_value = meld.get_value()
                 total_value += meld_value
-            except Exception:
+                logger.debug(f"Meld {i}: {meld.kind.value} worth {meld_value} points")
+            except Exception as e:
                 # If meld is invalid, the initial meld is invalid
+                logger.debug(f"Meld {i} validation failed: {e}")
                 return False
-                
-        return total_value >= 30
+        
+        is_valid = total_value >= 30
+        logger.debug(f"Initial meld total value: {total_value}, valid (>=30): {is_valid}")
+        return is_valid
 
     @staticmethod
     def validate_meld_structure(meld: Meld) -> bool:
