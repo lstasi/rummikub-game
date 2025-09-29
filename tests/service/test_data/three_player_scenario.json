@@ -1,0 +1,65 @@
+{
+  "name": "Three Player Scenario", 
+  "description": "A 3-player game where player 2 wins after some draws and plays",
+  "players": ["Alice", "Bob", "Charlie"],
+  "initial_pool": [
+    "1ra", "1rb", "2ra", "2rb", "3ra", "3rb", "4ra", "4rb", "5ra", "5rb",
+    "6ra", "6rb", "7ra", "7rb", "8ra", "8rb", "9ra", "9rb", "10ra", "10rb",
+    "11ra", "11rb", "12ra", "12rb", "13ra", "13rb",
+    "1ba", "1bb", "2ba", "2bb", "3ba", "3bb", "4ba", "4bb", "5ba", "5bb",
+    "6ba", "6bb", "7ba", "7bb", "8ba", "8bb", "9ba", "9bb", "10ba", "10bb",
+    "11ba", "11bb", "12ba", "12bb", "13ba", "13bb",
+    "1ka", "1kb", "2ka", "2kb", "3ka", "3kb", "4ka", "4kb", "5ka", "5kb",
+    "6ka", "6kb", "7ka", "7kb", "8ka", "8kb", "9ka", "9kb", "10ka", "10kb",
+    "11ka", "11kb", "12ka", "12kb", "13ka", "13kb",
+    "1oa", "1ob", "2oa", "2ob", "3oa", "3ob", "4oa", "4ob", "5oa", "5ob",
+    "6oa", "6ob", "7oa", "7ob", "8oa", "8ob", "9oa", "9ob", "10oa", "10ob",
+    "11oa", "11ob", "12oa", "12ob", "13oa", "13ob",
+    "ja", "jb"
+  ],
+  "initial_racks": {
+    "Alice": ["1ra", "2ra", "3ra", "4ra", "5ra", "6ra", "7ra", "8ra", "9ra", "10ra", "11ra", "12ra", "13ra", "1ba"],
+    "Bob": ["10ka", "11ka", "12ka", "1oa", "2oa", "3oa", "4oa", "5oa", "6oa", "7oa", "8oa", "9oa", "10oa", "11oa"],
+    "Charlie": ["1ka", "2ka", "3ka", "4ka", "5ka", "6ka", "7ka", "8ka", "9ka", "12oa", "13oa", "1bb", "2bb", "3bb"]
+  },
+  "actions": [
+    {
+      "player": "Alice",
+      "type": "draw"
+    },
+    {
+      "player": "Bob", 
+      "type": "play_tiles",
+      "melds": [
+        {
+          "kind": "run",
+          "tiles": ["10ka", "11ka", "12ka"]
+        }
+      ]
+    },
+    {
+      "player": "Charlie",
+      "type": "draw"
+    },
+    {
+      "player": "Alice",
+      "type": "draw"
+    },
+    {
+      "player": "Bob", 
+      "type": "play_tiles",
+      "melds": [
+        {
+          "kind": "run",
+          "tiles": ["10ka", "11ka", "12ka"]
+        },
+        {
+          "kind": "run", 
+          "tiles": ["1oa", "2oa", "3oa", "4oa", "5oa", "6oa", "7oa", "8oa", "9oa", "10oa", "11oa"]
+        }
+      ]
+    }
+  ],
+  "expected_winner": "Bob",
+  "expected_final_status": "completed"
+}
