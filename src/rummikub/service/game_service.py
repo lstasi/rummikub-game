@@ -113,7 +113,10 @@ class GameService:
             try:
                 game_data = self.redis.get(key)
                 if game_data:
-                    game_state = self._deserialize_game_state(str(game_data))
+                    # Handle bytes from Redis
+                    if isinstance(game_data, bytes):
+                        game_data = game_data.decode('utf-8')
+                    game_state = self._deserialize_game_state(game_data)
                     games.append(game_state)
             except Exception:
                 # Skip corrupted games
@@ -160,13 +163,10 @@ class GameService:
         """Load game state from Redis.
         
         Args:
-            game_id: Game ID to load
+            game_id: ID of the game to load
             
         Returns:
             GameState: Loaded game state
-            
-        Raises:
-            GameNotFoundError: If game not found in Redis
         """
         key = f"rummikub:games:{game_id}"
         game_data = self.redis.get(key)
@@ -174,7 +174,11 @@ class GameService:
         if not game_data:
             raise GameNotFoundError(f"Game {game_id} not found")
         
-        return self._deserialize_game_state(str(game_data))
+        # Handle bytes from Redis
+        if isinstance(game_data, bytes):
+            game_data = game_data.decode('utf-8')
+        
+        return self._deserialize_game_state(game_data)
     
     def _save_game_state(self, game_state: GameState) -> None:
         """Save game state to Redis.
@@ -254,7 +258,6 @@ class GameService:
         melds = []
         for meld_data in raw_data['board']['melds']:
             meld = Meld(
-                id=meld_data['id'],
                 kind=MeldKind(meld_data['kind']),
                 tiles=meld_data['tiles']
             )
@@ -379,6 +382,10 @@ class _GameLock:
                 # Fallback for test environments or Redis versions without Lua support
                 # Check if we still own the lock and delete
                 current_owner = self.redis.get(self.lock_key)
-                if current_owner and str(current_owner) == self.session_id:
-                    self.redis.delete(self.lock_key)
+                if current_owner:
+                    # Handle bytes from Redis
+                    if isinstance(current_owner, bytes):
+                        current_owner = current_owner.decode('utf-8')
+                    if current_owner == self.session_id:
+                        self.redis.delete(self.lock_key)
             self.acquired = False
