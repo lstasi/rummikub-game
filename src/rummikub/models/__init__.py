@@ -5,7 +5,7 @@ tiles, melds, game state, and validation utilities.
 """
 
 # Core models
-from .tiles import Color, NumberedTile, JokerTile, TileKind, TileInstance
+from .tiles import Color, NumberedTile, JokerTile, TileKind, TileUtils
 from .melds import Meld, MeldKind
 from .game import Rack, Pool, Board, Player, GameState, GameStatus
 from .actions import Turn, Action, PlayTilesAction, DrawAction
@@ -46,7 +46,7 @@ __all__ = [
     "NumberedTile", 
     "JokerTile",
     "TileKind",
-    "TileInstance",
+    "TileUtils",
     "Meld",
     "MeldKind",
     "Rack",

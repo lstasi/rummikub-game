@@ -78,8 +78,8 @@ def create_app():
     if static_path.exists():
         app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
     
-    # Mount API routes under /api/v1
-    app.mount("/api", api_app)
+    # Mount API routes under /api/v1 (removing /api prefix from routes)
+    app.mount("/api/v1", api_app)
     
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
@@ -147,8 +147,8 @@ Examples:
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Port to bind to (default: 8000)"
+        default=8090,
+        help="Port to bind to (default: 8090)"
     )
     parser.add_argument(
         "--reload",
@@ -187,19 +187,30 @@ Examples:
     
     print("\nPress Ctrl+C to stop the server\n")
     
-    # Create the combined app
-    app = create_app()
-    
-    # Run the server
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        log_level=args.log_level,
-        access_log=True,
-        reload_dirs=["src", "static"] if args.reload else None,
-    )
+    # Run the server with appropriate configuration for reload
+    if args.reload:
+        # For reload to work, we need to pass the app as an import string
+        uvicorn.run(
+            "main:create_app",
+            factory=True,
+            host=args.host,
+            port=args.port,
+            reload=True,
+            log_level=args.log_level,
+            access_log=True,
+            reload_dirs=["src", "static"],
+        )
+    else:
+        # Create the combined app
+        app = create_app()
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            reload=False,
+            log_level=args.log_level,
+            access_log=True,
+        )
     
     return 0
 

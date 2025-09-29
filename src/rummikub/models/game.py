@@ -3,15 +3,13 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, TYPE_CHECKING
+from typing import List, Optional, Dict
 from uuid import UUID, uuid4
-
-if TYPE_CHECKING:
-    from .tiles import TileInstance
 
 from .base import generate_uuid
 from .exceptions import GameStateError
 from .melds import Meld
+from .tiles import TileUtils, Color
 
 
 @dataclass
@@ -59,7 +57,7 @@ class Pool:
         return len(self.tile_ids) == 0
     
     @classmethod
-    def create_full_pool(cls) -> tuple["Pool", Dict[str, "TileInstance"]]:
+    def create_full_pool(cls) -> "Pool":
         """Create a complete pool with all 106 tiles according to Rummikub rules.
         
         Creates:
@@ -67,35 +65,19 @@ class Pool:
         - 2 joker tiles
         
         Returns:
-            Tuple of (Pool instance, dictionary mapping tile IDs to TileInstance objects)
+            Pool instance with all tile IDs
             
         Raises:
             GameStateError: If pool creation fails validation
         """
-        from .tiles import TileInstance, Color
-        
-        tile_instances = {}
-        tile_ids = []
-        
-        # Create 104 numbered tiles (2 of each number 1-13 in each of 4 colors)
-        for color in Color:
-            for number in range(1, 14):  # 1-13 inclusive
-                for copy_idx, copy in enumerate(['a', 'b']):  # 2 copies of each
-                    tile = TileInstance.create_numbered_tile(number=number, color=color, copy=copy)
-                    tile_instances[tile.id] = tile
-                    tile_ids.append(tile.id)
-        
-        # Create 2 joker tiles
-        for copy in ['a', 'b']:
-            joker = TileInstance.create_joker_tile(copy=copy)
-            tile_instances[joker.id] = joker
-            tile_ids.append(joker.id)
+        # Use TileUtils to create all tile IDs
+        tile_ids = TileUtils.create_full_tile_set()
         
         # Create pool and validate
         pool = cls(tile_ids=tile_ids)
-        pool.validate_complete_pool(tile_instances)
+        pool.validate_complete_pool()
         
-        return pool, tile_instances
+        return pool
         
     def create_rack(self, num_tiles: int = 14) -> tuple["Rack", "Pool"]:
         """Create a rack by dealing tiles from this pool.
@@ -149,7 +131,7 @@ class Pool:
         updated_pool = Pool(tile_ids=remaining_tiles)
         return tile_id, updated_pool
     
-    def validate_complete_pool(self, tile_instances: Dict[str, "TileInstance"]) -> bool:
+    def validate_complete_pool(self) -> bool:
         """Validate that pool contains exactly the correct set of tiles.
         
         Validates:
@@ -158,17 +140,12 @@ class Pool:
         - Exactly 2 copies of each numbered tile (1-13 in each of 4 colors = 104 tiles)
         - Exactly 2 joker tiles
         
-        Args:
-            tile_instances: Dictionary mapping tile IDs to TileInstance objects
-            
         Returns:
             True if validation passes
             
         Raises:
             GameStateError: If validation fails
         """
-        from .tiles import NumberedTile, JokerTile, Color
-        
         # Check for duplicate tile IDs first
         if len(set(self.tile_ids)) != len(self.tile_ids):
             raise GameStateError("Pool contains duplicate tile IDs")
@@ -177,22 +154,17 @@ class Pool:
             raise GameStateError(f"Pool must contain exactly 106 tiles, got {len(self.tile_ids)}")
         
         # Count tiles by type
-        numbered_tile_counts: Dict[tuple[int, str], int] = {}  # (number, color) -> count
+        numbered_tile_counts: Dict[tuple[int, Color], int] = {}  # (number, color) -> count
         joker_count = 0
         
         for tile_id in self.tile_ids:
-            if tile_id not in tile_instances:
-                raise GameStateError(f"Tile {tile_id} not found in tile_instances")
-                
-            tile = tile_instances[tile_id]
-            
-            if isinstance(tile.kind, NumberedTile):
-                key = (tile.kind.number, tile.kind.color)
-                numbered_tile_counts[key] = numbered_tile_counts.get(key, 0) + 1
-            elif isinstance(tile.kind, JokerTile):
+            if TileUtils.is_joker(tile_id):
                 joker_count += 1
             else:
-                raise GameStateError(f"Unknown tile kind: {type(tile.kind)}")
+                number = TileUtils.get_number(tile_id)
+                color = TileUtils.get_color(tile_id)
+                key = (number, color)
+                numbered_tile_counts[key] = numbered_tile_counts.get(key, 0) + 1
         
         # Validate jokers first: should have exactly 2
         if joker_count != 2:
@@ -209,10 +181,6 @@ class Pool:
                 count = numbered_tile_counts.get(key, 0)
                 if count != 2:
                     raise GameStateError(f"Expected exactly 2 copies of {color.value} {number}, got {count}")
-        
-        # Validate jokers: should have exactly 2
-        if joker_count != 2:
-            raise GameStateError(f"Expected exactly 2 joker tiles, got {joker_count}")
         
         return True
 
@@ -340,7 +308,7 @@ class GameStatus(str, Enum):
     COMPLETED = "completed"
 
 
-@dataclass
+@dataclass 
 class GameState:
     """Complete state of a Rummikub game."""
     
@@ -369,8 +337,8 @@ class GameState:
         if not (2 <= num_players <= 4):
             raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
             
-        # Create pool with tiles and tile instances
-        pool, _ = Pool.create_full_pool()
+        # Create pool with tiles
+        pool = Pool.create_full_pool()
         
         # Create empty players for the specified number of players
         players = []
@@ -495,12 +463,9 @@ class GameState:
             raise GameStateError(f"Number of players must be between 2 and 4, got {num_players}")
         return True
     
-    def validate_tile_ownership(self, tile_instances: Dict[str, "TileInstance"]) -> bool:
+    def validate_tile_ownership(self) -> bool:
         """Validate that all tiles are properly allocated and no duplicates exist.
         
-        Args:
-            tile_instances: Dictionary mapping tile IDs to tile instances
-            
         Returns:
             True if tile ownership is valid
             
@@ -531,8 +496,8 @@ class GameState:
                     raise GameStateError(f"Duplicate tile {tile_id} found on board")
                 all_tile_ids.add(tile_id)
         
-        # Verify all tiles in tile_instances are accounted for
-        expected_tile_ids = set(tile_instances.keys())
+        # Verify we have the complete set of tiles
+        expected_tile_ids = set(TileUtils.create_full_tile_set())
         actual_tile_ids = set(all_tile_ids)
         
         if expected_tile_ids != actual_tile_ids:
@@ -545,14 +510,13 @@ class GameState:
         
         return True
     
-    def calculate_initial_meld_total(self, melds: List[Meld], tile_instances: Dict[str, "TileInstance"]) -> int:
+    def calculate_initial_meld_total(self, melds: List[Meld]) -> int:
         """Calculate total value of melds for initial meld requirement.
         
         Args:
             melds: List of melds to calculate total for
-            tile_instances: Dictionary mapping tile IDs to tile instances
             
         Returns:
             Sum of all meld values
         """
-        return sum(meld.get_value(tile_instances) for meld in melds)
+        return sum(meld.get_value() for meld in melds)

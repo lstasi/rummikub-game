@@ -29,19 +29,23 @@ This document defines the domain model for the Rummikub game, derived from `RUMM
 
 The implementation is organized as follows:
 - `base.py`: Common utilities for ID generation and JSON serialization
-- `tiles.py`: Color enum and tile-related models (TileKind, TileInstance)
-- `melds.py`: Meld models with basic validation
+- `tiles.py`: Color enum, tile validation models (NumberedTile, JokerTile), and TileUtils static helpers
+- `melds.py`: Meld models with integrated validation
 - `game.py`: Game state models (Player, Rack, Pool, Board, GameState)
 - `actions.py`: Turn and action models
-- `validators.py`: Pure validation functions and utilities
 - `exceptions.py`: Domain-specific exception classes
 
 ## Identifiers and Multiplicity
 
-- Each physical tile instance should have a stable unique id (UUID v4) to distinguish duplicates (e.g., two copies of Red 7).
-- Logical tiles are described by kind:
-  - NumberedTile: (number: int 1–13, color: Color)
-  - JokerTile
+- Each physical tile is represented by a unique string ID that encodes its properties:
+  - Numbered tiles: "{number}{color_code}{copy}" (e.g., "7ra" = Red 7 copy A)
+  - Joker tiles: "j{copy}" (e.g., "ja" = Joker copy A)
+  - Color codes: 'k'=black, 'r'=red, 'b'=blue, 'o'=orange
+  - Copy identifiers: 'a' and 'b' (for the two copies of each tile)
+- Validation models for tile structure:
+  - NumberedTile: (number: int 1–13, color: Color) - used for validation only
+  - JokerTile: special tile marker - used for validation only
+- Static utilities provided by TileUtils class for working with tile ID strings
 
 ## Invariants and Validation Rules
 
@@ -77,15 +81,19 @@ The implementation is organized as follows:
 ## Data Structures (Logical Design)
 
 - Color: enum {BLACK, RED, BLUE, ORANGE}
-- TileKind: union of NumberedTile(number: int, color: Color) | Joker
-- TileInstance: { id: string, kind: TileKind } (ID format: numbered="7ra", joker="ja")
+- TileKind: union of NumberedTile(number: int, color: Color) | JokerTile (used for validation only)
+- Tile representation: string ID directly (no wrapper object)
+  - Format: numbered="7ra" (Red 7 copy A), joker="ja" (Joker copy A)
+  - TileUtils provides static methods for parsing and working with tile IDs
 - MeldKind: GROUP | RUN
 - Meld:
-  - kind: MeldKind
-  - tiles: ordered list of TileInstance ids (ordered for runs; order not significant for groups but retained for simplicity)
-  - derived (runtime): resolved logical assignment for jokers
-- Rack: { tile_ids: multiset[string] }
-- Pool: multiset[string]
+  - kind: MeldKind  
+  - tiles: list of tile ID strings (position matters for runs, groups use deterministic color ordering)
+  - id: deterministic ID generated from sorted tile IDs (groups: Black-Red-Blue-Orange order, runs: sequence order)
+  - validate(): validates meld structure with integrated joker assignment
+  - get_value(): calculates meld point value with joker resolution
+- Rack: { tile_ids: list[string] }
+- Pool: list[string]
 - Board: list of Melds
 - Player: { id: str, name?: str, initial_meld_met: bool, rack: Rack }
 - Turn: { player_id: str, action: Action }
@@ -99,16 +107,18 @@ Note: Actions are limited to two types: type = "play_tiles" (may include rearran
 
 ## Serialization Requirements
 
-- All entities must serialize to JSON deterministically with stable ids.
+- All entities must serialize to JSON deterministically with stable tile IDs.
 - Simple dataclass-based approach with utility functions:
   - Color as string enum: "black" | "red" | "blue" | "orange"
-  - Tile: { id: string, kind: { type: "numbered", number: int, color: Color } | { type: "joker" } }
-    - Tile IDs are now human-readable: numbered tiles like "7ra", jokers like "ja"
+  - Tiles are represented directly as string IDs: "7ra", "12ko", "ja"
+    - No nested tile objects - just the ID string which encodes all tile information
+    - Use TileUtils static methods to extract number, color, joker status from ID
   - Meld: { id: string, kind: "group"|"run", tiles: string[] }
-    - Meld IDs still use UUIDs, but tile references use the new format
+    - Meld IDs are deterministic: sorted tile IDs joined with "-" (groups by color order, runs by sequence)
+    - Examples: "7ka-7ra-7ba" (group), "5ra-6ra-7ra" (run)
   - Board: { melds: Meld[] }
-	- Player: { id: string, name?: string, initial_meld_met: boolean, rack: Rack }
-	- GameState: see below
+  - Player: { id: string, name?: string, initial_meld_met: boolean, rack: Rack }
+  - GameState: see below
 
 ## GameState
 
@@ -116,7 +126,7 @@ Fields:
 - game_id: string (UUID)
 - players: list[Player] with turn order by index
 - current_player_index: int
-- pool: list[string-uuid] (face-down tiles)
+- pool: list[string] (face-down tile IDs)
 - board: list[Meld]
 - created_at, updated_at: timestamps (UTC ISO8601)
 - status: enum { WAITING_FOR_PLAYERS, IN_PROGRESS, COMPLETED }

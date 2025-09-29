@@ -48,7 +48,8 @@
                 </div>
                 <div class="turn-actions">
                     <button id="draw-tile-btn" class="btn btn-draw">Draw Tile</button>
-                    <button id="end-turn-btn" class="btn btn-success" disabled>End Turn</button>
+                    <button id="end-turn-btn" class="btn btn-success" disabled>Next Turn</button>
+                    <button id="reset-btn" class="btn btn-warning">Reset</button>
                 </div>
             </section>
         </main>
@@ -58,6 +59,11 @@
         </div>
         
         <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="debug-info" class="debug-info" style="display: none;">
+            <h3>Debug Information (Ctrl+D to toggle)</h3>
+            <div id="debug-content"></div>
+        </div>
     </div>
     
     <script src="/static/js/main.js"></script>

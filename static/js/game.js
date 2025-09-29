@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rack = document.getElementById('rack');
     const loading = document.getElementById('loading');
     const error = document.getElementById('error');
+    const debugInfo = document.getElementById('debug-info');
     
     // Action buttons
     const pushToBoardBtn = document.getElementById('push-to-board-btn');
@@ -26,6 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const groupMeldBtn = document.getElementById('group-meld-btn');
     const drawTileBtn = document.getElementById('draw-tile-btn');
     const endTurnBtn = document.getElementById('end-turn-btn');
+    const resetBtn = document.getElementById('reset-btn');
     const leaveGameBtn = document.getElementById('leave-game-btn');
     
     // Sorting buttons
@@ -33,7 +35,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sortByColorBtn = document.getElementById('sort-by-color');
     
     // Game state
-    let currentGameState = null;
+    let serverGameState = null; // State from server
+    let localBoardState = null; // Local modifications for current turn
+    let playerRackState = null; // Local rack state
     let selectedTiles = new Set();
     let selectedMelds = new Set();
     let playerId = null;
@@ -50,15 +54,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         groupMeldBtn.addEventListener('click', groupMeld);
         drawTileBtn.addEventListener('click', drawTile);
         endTurnBtn.addEventListener('click', endTurn);
+        resetBtn.addEventListener('click', resetTurn);
         leaveGameBtn.addEventListener('click', leaveGame);
         
         sortByNumberBtn.addEventListener('click', () => sortRack('number'));
         sortByColorBtn.addEventListener('click', () => sortRack('color'));
+        
+        // Debug toggle
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'd') {
+                e.preventDefault();
+                toggleDebugInfo();
+            }
+        });
+    }
+    
+    function toggleDebugInfo() {
+        const debugVisible = debugInfo.style.display !== 'none';
+        debugInfo.style.display = debugVisible ? 'none' : 'block';
+        updateDebugInfo();
+    }
+    
+    function updateDebugInfo() {
+        if (debugInfo.style.display === 'none') return;
+        
+        const debugContent = document.getElementById('debug-content');
+        debugContent.innerHTML = `
+            <p><strong>Server State:</strong></p>
+            <pre>${JSON.stringify(serverGameState, null, 2)}</pre>
+            <p><strong>Local Board State:</strong></p>
+            <pre>${JSON.stringify(localBoardState, null, 2)}</pre>
+            <p><strong>Player Rack:</strong></p>
+            <pre>${JSON.stringify(playerRackState, null, 2)}</pre>
+            <p><strong>Selected Tiles:</strong> ${Array.from(selectedTiles).join(', ')}</p>
+            <p><strong>Selected Melds:</strong> ${Array.from(selectedMelds).join(', ')}</p>
+        `;
     }
     
     async function loadGameState() {
         try {
             Utils.showLoading(loading, true);
+            Utils.hideError(error);
             
             // If we don't have playerId, we need to find it by joining
             if (!playerId) {
@@ -73,7 +109,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             const response = await API.getGameState(gameId, playerId);
-            currentGameState = response;
+            serverGameState = response;
+            
+            // Initialize local state from server state
+            resetLocalState();
             
             updateUI();
             Utils.showLoading(loading, false);
@@ -87,16 +126,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                 errorMessage = 'Game not found.';
             }
             
-            Utils.showError(error, errorMessage);
+            showApiError(error, errorMessage);
         }
+    }
+    
+    function resetLocalState() {
+        // Reset local board state to match server
+        localBoardState = {
+            melds: serverGameState ? [...serverGameState.board.melds] : []
+        };
+        
+        // Reset player rack state
+        const myPlayer = serverGameState?.players.find(p => p.id === playerId);
+        playerRackState = {
+            tiles: myPlayer?.rack ? [...myPlayer.rack.tiles] : []
+        };
+        
+        // Clear selections
+        selectedTiles.clear();
+        selectedMelds.clear();
+    }
+    
+    function showApiError(error, fallbackMessage) {
+        let errorMessage = fallbackMessage;
+        let debugMessage = '';
+        
+        if (error.response) {
+            debugMessage = `HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}`;
+        } else if (error.message) {
+            debugMessage = error.message;
+        }
+        
+        Utils.showError(error, `${errorMessage}\n\nDebug: ${debugMessage}`);
+        console.error('API Error:', error);
     }
     
     function startPolling() {
         setInterval(async () => {
-            if (playerId && currentGameState && currentGameState.status !== 'completed') {
+            if (playerId && serverGameState && serverGameState.status !== 'completed') {
                 try {
                     const response = await API.getGameState(gameId, playerId);
-                    currentGameState = response;
+                    const wasMyTurn = isCurrentPlayer(playerId);
+                    serverGameState = response;
+                    
+                    // If it wasn't my turn before but is now, reset local state
+                    if (!wasMyTurn && isCurrentPlayer(playerId)) {
+                        resetLocalState();
+                    }
+                    
                     updateUI();
                 } catch (error) {
                     console.error('Polling failed:', error);
@@ -106,33 +183,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function updateUI() {
-        if (!currentGameState) return;
+        if (!serverGameState) return;
         
         updateGameStatus();
         updatePlayersList();
         updateBoard();
         updateRack();
         updateActionButtons();
+        updateDebugInfo();
         
         // Check for game end
-        if (currentGameState.status === 'completed') {
+        if (serverGameState.status === 'completed') {
             Utils.navigateTo('win', { 
                 game_id: gameId, 
-                winner: currentGameState.winner_player_id 
+                winner: serverGameState.winner_player_id 
             });
         }
     }
     
     function updateGameStatus() {
-        const status = currentGameState.status.replace('_', ' ').toUpperCase();
+        const status = serverGameState.status.replace('_', ' ').toUpperCase();
         const currentPlayerName = getCurrentPlayerName();
-        gameStatus.textContent = `${status} - ${currentPlayerName}'s turn`;
+        const turnIndicator = isCurrentPlayer(playerId) ? '(YOUR TURN)' : '';
+        gameStatus.textContent = `${status} - ${currentPlayerName}'s turn ${turnIndicator}`;
     }
     
     function updatePlayersList() {
         playersList.innerHTML = '';
         
-        currentGameState.players.forEach(player => {
+        serverGameState.players.forEach(player => {
             const playerCard = document.createElement('div');
             playerCard.className = 'player-card';
             
@@ -144,7 +223,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 playerCard.classList.add('current-player');
             }
             
-            const tileCount = player.rack ? player.rack.tiles.length : player.rack_size;
+            // For current player, show local rack count, for others show server count
+            let tileCount;
+            if (player.id === playerId) {
+                tileCount = playerRackState.tiles.length;
+            } else {
+                tileCount = player.rack ? player.rack.tiles.length : player.rack_size;
+            }
+            
             const initialMeldStatus = player.initial_meld_met ? 'Initial meld met' : 'Needs initial meld (30+ pts)';
             const initialMeldClass = player.initial_meld_met ? 'initial-meld-met' : 'initial-meld-not-met';
             
@@ -160,20 +246,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     function updateBoard() {
         board.innerHTML = '';
-        const noMelds = document.getElementById('no-melds');
         
-        if (!currentGameState.board.melds || currentGameState.board.melds.length === 0) {
-            if (!noMelds) {
-                const noMeldsDiv = document.createElement('div');
-                noMeldsDiv.id = 'no-melds';
-                noMeldsDiv.className = 'no-melds';
-                noMeldsDiv.textContent = 'No melds on board yet';
-                board.appendChild(noMeldsDiv);
-            }
+        // Use local board state (shows pending changes)
+        if (!localBoardState.melds || localBoardState.melds.length === 0) {
+            const noMeldsDiv = document.createElement('div');
+            noMeldsDiv.id = 'no-melds';
+            noMeldsDiv.className = 'no-melds';
+            noMeldsDiv.textContent = 'No melds on board yet';
+            board.appendChild(noMeldsDiv);
             return;
         }
         
-        currentGameState.board.melds.forEach(meld => {
+        localBoardState.melds.forEach(meld => {
             const meldElement = createMeldElement(meld);
             board.appendChild(meldElement);
         });
@@ -182,10 +266,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateRack() {
         rack.innerHTML = '';
         
-        const myPlayer = currentGameState.players.find(p => p.id === playerId);
-        if (!myPlayer || !myPlayer.rack) return;
+        // Use local rack state (shows pending changes)
+        if (!playerRackState.tiles) return;
         
-        myPlayer.rack.tiles.forEach(tileId => {
+        playerRackState.tiles.forEach(tileId => {
             const tileElement = createTileElement(tileId, 'rack');
             rack.appendChild(tileElement);
         });
@@ -284,95 +368,151 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function getCurrentPlayerName() {
-        if (!currentGameState) return '';
-        const currentPlayer = currentGameState.players[currentGameState.current_player_index];
+        if (!serverGameState) return '';
+        const currentPlayer = serverGameState.players[serverGameState.current_player_index];
         return currentPlayer ? currentPlayer.name : '';
     }
     
     function isCurrentPlayer(pId) {
-        if (!currentGameState) return false;
-        const currentPlayer = currentGameState.players[currentGameState.current_player_index];
+        if (!serverGameState) return false;
+        const currentPlayer = serverGameState.players[serverGameState.current_player_index];
         return currentPlayer && currentPlayer.id === pId;
     }
     
-    // Action functions (simplified for MVP)
-    async function pushToBoard() {
+    // Action functions - Local modifications only (no API calls)
+    function pushToBoard() {
         if (selectedTiles.size === 0) return;
         
-        // For MVP: Create a simple meld with selected tiles
+        // Create a new meld with selected tiles
         const selectedTilesArray = Array.from(selectedTiles);
         const newMeld = {
             id: `meld-${Date.now()}`,
-            kind: 'group', // Default to group for simplicity
+            kind: 'group', // Default to group, player can change later
             tiles: selectedTilesArray
         };
         
-        try {
-            const melds = [...currentGameState.board.melds, newMeld];
-            await API.playTiles(gameId, playerId, melds);
-            selectedTiles.clear();
-        } catch (error) {
-            Utils.showError(error, error.message);
-        }
+        // Add to local board state
+        localBoardState.melds.push(newMeld);
+        
+        // Remove tiles from local rack
+        selectedTilesArray.forEach(tileId => {
+            const index = playerRackState.tiles.indexOf(tileId);
+            if (index > -1) {
+                playerRackState.tiles.splice(index, 1);
+            }
+        });
+        
+        selectedTiles.clear();
+        updateUI();
     }
     
-    async function removeFromBoard() {
+    function removeFromBoard() {
+        if (selectedMelds.size === 0) return;
+        
+        // Move tiles from selected melds back to rack
+        selectedMelds.forEach(meldId => {
+            const meld = localBoardState.melds.find(m => m.id === meldId);
+            if (meld) {
+                // Add tiles back to rack
+                playerRackState.tiles.push(...meld.tiles);
+            }
+        });
+        
         // Remove selected melds from board
-        try {
-            const remainingMelds = currentGameState.board.melds.filter(
-                meld => !selectedMelds.has(meld.id)
-            );
-            await API.playTiles(gameId, playerId, remainingMelds);
-            selectedMelds.clear();
-        } catch (error) {
-            Utils.showError(error, error.message);
-        }
+        localBoardState.melds = localBoardState.melds.filter(
+            meld => !selectedMelds.has(meld.id)
+        );
+        
+        selectedMelds.clear();
+        updateUI();
     }
     
-    async function breakMeld() {
-        // For MVP: Just remove the selected melds
-        await removeFromBoard();
+    function breakMeld() {
+        if (selectedMelds.size === 0) return;
+        
+        // Break selected melds into individual tiles and return to rack
+        selectedMelds.forEach(meldId => {
+            const meld = localBoardState.melds.find(m => m.id === meldId);
+            if (meld) {
+                // Add tiles back to rack
+                playerRackState.tiles.push(...meld.tiles);
+            }
+        });
+        
+        // Remove selected melds from board
+        localBoardState.melds = localBoardState.melds.filter(
+            meld => !selectedMelds.has(meld.id)
+        );
+        
+        selectedMelds.clear();
+        updateUI();
     }
     
-    async function groupMeld() {
-        // For MVP: Combine selected melds into one
+    function groupMeld() {
         if (selectedMelds.size < 2) return;
         
-        try {
-            const selectedMeldObjects = currentGameState.board.melds.filter(
-                meld => selectedMelds.has(meld.id)
-            );
-            const allTiles = selectedMeldObjects.flatMap(meld => meld.tiles);
-            
-            const newMeld = {
-                id: `meld-${Date.now()}`,
-                kind: 'group',
-                tiles: allTiles
-            };
-            
-            const remainingMelds = currentGameState.board.melds.filter(
-                meld => !selectedMelds.has(meld.id)
-            );
-            
-            const melds = [...remainingMelds, newMeld];
-            await API.playTiles(gameId, playerId, melds);
-            selectedMelds.clear();
-        } catch (error) {
-            Utils.showError(error, error.message);
-        }
+        // Combine selected melds into one new meld
+        const selectedMeldObjects = localBoardState.melds.filter(
+            meld => selectedMelds.has(meld.id)
+        );
+        const allTiles = selectedMeldObjects.flatMap(meld => meld.tiles);
+        
+        const newMeld = {
+            id: `meld-${Date.now()}`,
+            kind: 'group', // Player can change this later
+            tiles: allTiles
+        };
+        
+        // Remove selected melds and add new combined meld
+        localBoardState.melds = localBoardState.melds.filter(
+            meld => !selectedMelds.has(meld.id)
+        );
+        localBoardState.melds.push(newMeld);
+        
+        selectedMelds.clear();
+        updateUI();
     }
     
     async function drawTile() {
         try {
             await API.drawTile(gameId, playerId);
+            // Polling will update the UI when server responds
         } catch (error) {
-            Utils.showError(error, error.message);
+            showApiError(error, 'Failed to draw tile');
         }
     }
     
     async function endTurn() {
-        // For MVP: End turn is automatic after actions
-        alert('Turn ends automatically after playing tiles or drawing a tile.');
+        if (!isCurrentPlayer(playerId)) return;
+        
+        // Check if there are local changes to commit
+        const hasChanges = !arraysEqual(localBoardState.melds, serverGameState.board.melds);
+        
+        if (hasChanges) {
+            try {
+                // Send the current local board state to server
+                const meldsToSend = localBoardState.melds.map(meld => ({
+                    id: meld.id,
+                    kind: meld.kind,
+                    tiles: meld.tiles
+                }));
+                
+                await API.playTiles(gameId, playerId, meldsToSend);
+                // Polling will update the UI when server responds
+            } catch (error) {
+                showApiError(error, 'Failed to play tiles. Check the error above and fix your melds.');
+                return;
+            }
+        } else {
+            // No changes, just draw a tile to end turn
+            await drawTile();
+        }
+    }
+    
+    function resetTurn() {
+        // Reset local state back to server state
+        resetLocalState();
+        updateUI();
     }
     
     function leaveGame() {
@@ -383,8 +523,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function sortRack(method) {
-        // This would sort the visual representation
-        // For MVP, just show a message
-        alert(`Sorting by ${method} - feature coming soon!`);
+        if (method === 'number') {
+            playerRackState.tiles.sort((a, b) => {
+                const aNum = parseInt(a.match(/\d+/)?.[0] || '0');
+                const bNum = parseInt(b.match(/\d+/)?.[0] || '0');
+                return aNum - bNum;
+            });
+        } else if (method === 'color') {
+            playerRackState.tiles.sort((a, b) => {
+                const aColor = a.match(/[krbo]/)?.[0] || 'z';
+                const bColor = b.match(/[krbo]/)?.[0] || 'z';
+                return aColor.localeCompare(bColor);
+            });
+        }
+        updateUI();
+    }
+    
+    function arraysEqual(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
     }
 });

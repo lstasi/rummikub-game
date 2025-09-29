@@ -310,3 +310,55 @@
         padding: 5px;
     }
 }
+
+/* Debug info styles */
+.debug-info {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 400px;
+    max-height: 80vh;
+    background-color: rgba(0,0,0,0.9);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    overflow-y: auto;
+    z-index: 1000;
+    border: 2px solid #555;
+}
+
+.debug-info h3 {
+    margin: 0 0 10px 0;
+    color: #4CAF50;
+}
+
+.debug-info pre {
+    background-color: rgba(255,255,255,0.1);
+    padding: 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 5px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.debug-info p {
+    margin: 8px 0;
+    color: #ccc;
+}
+
+/* Enhanced error display */
+.error {
+    background-color: #f44336 !important;
+    color: white !important;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+}

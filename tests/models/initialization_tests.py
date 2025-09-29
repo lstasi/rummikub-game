@@ -4,7 +4,7 @@ import pytest
 from uuid import uuid4
 
 from rummikub.models import (
-    Color, NumberedTile, JokerTile, GameState, Player, Rack, Pool,
+    Color, TileUtils, GameState, Player, Rack, Pool,
     GameStateError
 )
 
@@ -14,32 +14,32 @@ class TestPoolInitialization:
     
     def test_create_full_pool_success(self):
         """Test successful creation of complete pool."""
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
         # Basic counts
         assert len(pool) == 106
-        assert len(tile_instances) == 106
         
-        # All tile IDs should be in tile_instances
+        # All tile IDs should be valid
         for tile_id in pool.tile_ids:
-            assert str(tile_id) in tile_instances
+            assert isinstance(tile_id, str)
+            assert len(tile_id) >= 2  # Minimum valid tile ID length
     
     def test_create_full_pool_contains_correct_tiles(self):
         """Test that created pool contains exactly the right tiles."""
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
-        # Count by type
+        # Count by type using TileUtils
         numbered_tiles = {}  # (number, color) -> count
         joker_count = 0
         
         for tile_id in pool.tile_ids:
-            tile = tile_instances[str(tile_id)]
-            
-            if isinstance(tile.kind, NumberedTile):
-                key = (tile.kind.number, tile.kind.color)
-                numbered_tiles[key] = numbered_tiles.get(key, 0) + 1
-            elif isinstance(tile.kind, JokerTile):
+            if TileUtils.is_joker(tile_id):
                 joker_count += 1
+            else:
+                number = TileUtils.get_number(tile_id)
+                color = TileUtils.get_color(tile_id)
+                key = (number, color)
+                numbered_tiles[key] = numbered_tiles.get(key, 0) + 1
         
         # Check numbered tiles: 2 of each number (1-13) in each color (4 colors)
         assert len(numbered_tiles) == 52  # 4 colors * 13 numbers
@@ -55,26 +55,25 @@ class TestPoolInitialization:
     
     def test_validate_complete_pool_success(self):
         """Test successful validation of complete pool."""
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
         # Should pass validation without raising exception
-        result = pool.validate_complete_pool(tile_instances)
+        result = pool.validate_complete_pool()
         assert result is True
     
     def test_validate_complete_pool_wrong_count(self):
         """Test validation failure with wrong tile count."""
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
         # Remove one tile
-        removed_tile_id = pool.tile_ids.pop()
-        del tile_instances[str(removed_tile_id)]
+        pool.tile_ids.pop()
         
         with pytest.raises(GameStateError, match="Pool must contain exactly 106 tiles, got 105"):
-            pool.validate_complete_pool(tile_instances)
+            pool.validate_complete_pool()
     
     def test_validate_complete_pool_duplicate_tiles(self):
         """Test validation failure with duplicate tile IDs."""
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         
         # Duplicate the first tile ID (don't change total count to test duplicate detection)
         duplicate_tile_id = pool.tile_ids[0]
@@ -82,18 +81,18 @@ class TestPoolInitialization:
         pool.tile_ids.append(duplicate_tile_id)  # Add duplicate
         
         with pytest.raises(GameStateError, match="Pool contains duplicate tile IDs"):
-            pool.validate_complete_pool(tile_instances)
+            pool.validate_complete_pool()
     
-    def test_validate_complete_pool_missing_tile_instance(self):
-        """Test validation failure when tile_instances is missing a tile."""
-        pool, tile_instances = Pool.create_full_pool()
+    def test_validate_complete_pool_invalid_tile_format(self):
+        """Test validation failure with invalid tile format."""
+        pool = Pool.create_full_pool()
         
-        # Remove tile from tile_instances but not from pool.tile_ids
-        first_tile_id = str(pool.tile_ids[0])
-        del tile_instances[first_tile_id]
+        # Replace first tile with invalid format
+        pool.tile_ids[0] = "invalid_tile_format"
         
-        with pytest.raises(GameStateError, match=f"Tile {pool.tile_ids[0]} not found in tile_instances"):
-            pool.validate_complete_pool(tile_instances)
+        # Should raise an error when trying to parse the invalid tile
+        with pytest.raises(Exception):  # TileUtils will raise an error parsing invalid format
+            pool.validate_complete_pool()
 
 
 class TestRackValidation:
@@ -101,7 +100,14 @@ class TestRackValidation:
     
     def test_validate_initial_rack_size_success(self):
         """Test successful validation of 14-tile rack."""
-        tile_ids = [uuid4() for _ in range(14)]
+        colors = [Color.RED, Color.BLUE, Color.BLACK, Color.ORANGE]
+        tile_ids = []
+        for i in range(14):
+            color = colors[i % 4]
+            number = (i // 4) % 13 + 1
+            copy = 'a' if i < 7 else 'b'
+            tile_ids.append(TileUtils.create_numbered_tile_id(number, color, copy))
+        
         rack = Rack(tile_ids=tile_ids)
         
         result = rack.validate_initial_rack_size()
@@ -109,7 +115,14 @@ class TestRackValidation:
     
     def test_validate_initial_rack_size_too_few(self):
         """Test validation failure with too few tiles."""
-        tile_ids = [uuid4() for _ in range(10)]
+        colors = [Color.RED, Color.BLUE, Color.BLACK, Color.ORANGE]
+        tile_ids = []
+        for i in range(10):
+            color = colors[i % 4]
+            number = (i // 4) % 13 + 1
+            copy = 'a' if i < 5 else 'b'
+            tile_ids.append(TileUtils.create_numbered_tile_id(number, color, copy))
+        
         rack = Rack(tile_ids=tile_ids)
         
         with pytest.raises(GameStateError, match="Initial rack must contain exactly 14 tiles, got 10"):
@@ -117,7 +130,14 @@ class TestRackValidation:
     
     def test_validate_initial_rack_size_too_many(self):
         """Test validation failure with too many tiles."""
-        tile_ids = [uuid4() for _ in range(20)]
+        colors = [Color.RED, Color.BLUE, Color.BLACK, Color.ORANGE]
+        tile_ids = []
+        for i in range(20):
+            color = colors[i % 4]
+            number = (i // 4) % 13 + 1
+            copy = 'a' if i < 10 else 'b'
+            tile_ids.append(TileUtils.create_numbered_tile_id(number, color, copy))
+        
         rack = Rack(tile_ids=tile_ids)
         
         with pytest.raises(GameStateError, match="Initial rack must contain exactly 14 tiles, got 20"):
@@ -162,7 +182,7 @@ class TestGameStateInitialization:
         
         # Test valid player counts
         for num_players in [2, 3, 4]:
-            game_state.players = [Player(id=f"player_{i}") for i in range(num_players)]
+            game_state.players = [Player(id=f"player_{i}", name=f"Player {i}") for i in range(num_players)]
             result = game_state.validate_player_count()
             assert result is True
     
@@ -172,12 +192,12 @@ class TestGameStateInitialization:
         game_state = GameState(game_id=game_id)
         
         # Test too few players
-        game_state.players = [Player(id="player_1")]
+        game_state.players = [Player(id="player_1", name="Player 1")]
         with pytest.raises(GameStateError, match="Number of players must be between 2 and 4, got 1"):
             game_state.validate_player_count()
         
         # Test too many players
-        game_state.players = [Player(id=f"player_{i}") for i in range(5)]
+        game_state.players = [Player(id=f"player_{i}", name=f"Player {i}") for i in range(5)]
         with pytest.raises(GameStateError, match="Number of players must be between 2 and 4, got 5"):
             game_state.validate_player_count()
         
@@ -197,7 +217,7 @@ class TestIntegrationScenarios:
         game_state = GameState.create_new_game(game_id, 3)
         
         # Create full pool
-        pool, tile_instances = Pool.create_full_pool()
+        pool = Pool.create_full_pool()
         game_state.pool = pool
         
         # Create players with properly sized racks
@@ -217,8 +237,8 @@ class TestIntegrationScenarios:
         # Validate game state
         game_state.validate_player_count()  # Should pass
         
-        # Validate tile ownership (remaining tiles in pool + player racks should equal original set)
-        game_state.validate_tile_ownership(tile_instances)  # Should pass
+        # Validate tile ownership (no duplicates across all game components)
+        game_state.validate_tile_ownership()  # Should pass
         
         # Check final counts
         assert len(game_state.players) == 3
@@ -232,7 +252,7 @@ class TestIntegrationScenarios:
         
         # Add 2 players
         for i in range(2):
-            player = Player(id=f"player_{i}")
+            player = Player(id=f"player_{i}", name=f"Player {i+1}")
             game_state.players.append(player)
         
         # Should validate successfully
@@ -245,7 +265,7 @@ class TestIntegrationScenarios:
         
         # Add 4 players
         for i in range(4):
-            player = Player(id=f"player_{i}")
+            player = Player(id=f"player_{i}", name=f"Player {i+1}")
             game_state.players.append(player)
         
         # Should validate successfully

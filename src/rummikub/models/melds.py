@@ -2,19 +2,52 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Dict
 
-if TYPE_CHECKING:
-    from .tiles import TileInstance, NumberedTile
-
-from .base import generate_uuid
 from .exceptions import InvalidMeldError, JokerAssignmentError
+from .tiles import TileUtils, Color, NumberedTile
 
 
 class MeldKind(str, Enum):
     """Types of melds in Rummikub."""
     GROUP = "group"
     RUN = "run"
+
+
+def _generate_meld_id(kind: MeldKind, tiles: List[str]) -> str:
+    """Generate a deterministic meld ID based on tile composition.
+    
+    For groups: sorts tiles by color order (black, red, blue, orange)
+    For runs: sorts tiles by position/number (jokers maintain their position)
+    
+    Args:
+        kind: The meld kind (GROUP or RUN)
+        tiles: List of tile IDs
+        
+    Returns:
+        Deterministic meld ID as concatenated sorted tile IDs with "-"
+    """
+    if kind == MeldKind.GROUP:
+        # For groups, sort by color order: black, red, blue, orange
+        # Define color order for sorting
+        color_order = {Color.BLACK: 0, Color.RED: 1, Color.BLUE: 2, Color.ORANGE: 3}
+        
+        def group_sort_key(tile_id: str) -> int:
+            if TileUtils.is_joker(tile_id):
+                # Jokers go last in groups (they'll be assigned remaining colors)
+                return 4
+            else:
+                color = TileUtils.get_color(tile_id)
+                return color_order[color]
+        
+        sorted_tiles = sorted(tiles, key=group_sort_key)
+        
+    else:  # RUN
+        # For runs, maintain the original order since position matters
+        # The tiles should already be in correct sequence order
+        sorted_tiles = tiles
+    
+    return "-".join(sorted_tiles)
 
 
 @dataclass
@@ -25,16 +58,15 @@ class Meld:
     The tiles list maintains order for runs; for groups, order
     doesn't affect validity but is preserved for deterministic serialization.
     
-    Note: Basic validation (non-empty) happens at creation, but full validation
-    requiring tile instances should be done via validate_with_tiles().
+    The meld ID is deterministically generated from the sorted tile IDs.
     """
     
     kind: MeldKind
     tiles: List[str]
-    id: str = field(default_factory=lambda: str(generate_uuid()))
+    id: str = field(init=False)
     
     def __post_init__(self):
-        """Basic validation that doesn't require tile instances."""
+        """Basic validation and ID generation."""
         if not self.tiles:
             raise InvalidMeldError("Meld cannot be empty")
         
@@ -43,35 +75,29 @@ class Meld:
             raise InvalidMeldError("Group must have 3-4 tiles", "size")
         elif self.kind == MeldKind.RUN and len(self.tiles) < 3:
             raise InvalidMeldError("Run must have at least 3 tiles", "size")
-    
-    def validate_with_tiles(self, tile_instances: Dict[str, "TileInstance"]) -> None:
-        """Validate meld with actual tile instances.
         
-        Args:
-            tile_instances: Dictionary mapping tile IDs to tile instances
-            
+        # Generate deterministic ID
+        self.id = _generate_meld_id(self.kind, self.tiles)
+    
+    def validate(self) -> None:
+        """Validate meld with tile IDs.
+        
         Raises:
             InvalidMeldError: If meld is invalid
             JokerAssignmentError: If jokers cannot be assigned
         """
-        # Import here to avoid circular imports
-        
-        tiles = [tile_instances[str(tile_id)] for tile_id in self.tiles]
-        
         if self.kind == MeldKind.GROUP:
-            self._validate_group(tiles)
+            self._validate_group(self.tiles)
         else:  # RUN
-            self._validate_run(tiles)
+            self._validate_run(self.tiles)
     
-    def _validate_group(self, tiles: List["TileInstance"]) -> None:
+    def _validate_group(self, tile_ids: List[str]) -> None:
         """Validate that tiles form a valid group."""
-        from .tiles import NumberedTile
-        
         # Separate jokers and numbered tiles
-        jokers = [t for t in tiles if t.is_joker]
-        numbered = [t for t in tiles if t.is_numbered]
+        jokers = [tid for tid in tile_ids if TileUtils.is_joker(tid)]
+        numbered = [tid for tid in tile_ids if TileUtils.is_numbered(tid)]
         
-        if len(jokers) + len(numbered) != len(tiles):
+        if len(jokers) + len(numbered) != len(tile_ids):
             raise InvalidMeldError("All tiles must be either numbered or jokers")
         
         # If no numbered tiles, cannot determine the group's number
@@ -79,33 +105,30 @@ class Meld:
             raise JokerAssignmentError("Cannot determine group number with only jokers")
         
         # All numbered tiles must have the same number
-        numbers = {tile.kind.number for tile in numbered if isinstance(tile.kind, NumberedTile)}
+        numbers = {TileUtils.get_number(tid) for tid in numbered}
         if len(numbers) != 1:
             raise InvalidMeldError("All numbered tiles in group must have same number", "mixed-numbers")
         
         # All numbered tiles must have distinct colors
-        numbered_colors = {tile.kind.color for tile in numbered if isinstance(tile.kind, NumberedTile)}
+        numbered_colors = {TileUtils.get_color(tid) for tid in numbered}
         if len(numbered_colors) != len(numbered):
             raise InvalidMeldError("Group cannot have duplicate colors", "color-duplication")
         
         # Check that we don't have too many tiles for available colors
-        from .tiles import Color
         available_colors = set(Color)
-        if len(tiles) > len(available_colors):
+        if len(tile_ids) > len(available_colors):
             raise InvalidMeldError("Group cannot have more tiles than available colors", "size")
         
         # Validate joker assignment is possible
-        self._assign_jokers_in_group(tiles)
+        self._assign_jokers_in_group(tile_ids)
     
-    def _validate_run(self, tiles: List["TileInstance"]) -> None:
+    def _validate_run(self, tile_ids: List[str]) -> None:
         """Validate that tiles form a valid run."""
-        from .tiles import NumberedTile
+        # Separate jokers and numbered tiles with their positions
+        jokers = [(i, tid) for i, tid in enumerate(tile_ids) if TileUtils.is_joker(tid)]
+        numbered = [(i, tid) for i, tid in enumerate(tile_ids) if TileUtils.is_numbered(tid)]
         
-        # Separate jokers and numbered tiles
-        jokers = [(i, t) for i, t in enumerate(tiles) if t.is_joker]
-        numbered = [(i, t) for i, t in enumerate(tiles) if t.is_numbered]
-        
-        if len(jokers) + len(numbered) != len(tiles):
+        if len(jokers) + len(numbered) != len(tile_ids):
             raise InvalidMeldError("All tiles must be either numbered or jokers")
         
         # If no numbered tiles, cannot determine the run's color
@@ -113,31 +136,26 @@ class Meld:
             raise JokerAssignmentError("Cannot determine run color with only jokers")
         
         # All numbered tiles must have the same color
-        run_colors = {tile.kind.color for pos, tile in numbered if isinstance(tile.kind, NumberedTile)}
+        run_colors = {TileUtils.get_color(tid) for pos, tid in numbered}
         if len(run_colors) != 1:
             raise InvalidMeldError("Run tiles must all have the same color", "mixed-colors")
         
         # Validate sequence logic
-        self._assign_jokers_in_run(tiles)
+        self._assign_jokers_in_run(tile_ids)
     
-    def _assign_jokers_in_group(self, tiles: List["TileInstance"]) -> Dict[str, "NumberedTile"]:
+    def _assign_jokers_in_group(self, tile_ids: List[str]) -> Dict[str, NumberedTile]:
         """Assign jokers in a group meld and return their resolved values."""
-        from .tiles import NumberedTile, Color
-        
         # Separate jokers and numbered tiles
-        jokers = [t for t in tiles if t.is_joker]
-        numbered = [t for t in tiles if t.is_numbered]
+        jokers = [tid for tid in tile_ids if TileUtils.is_joker(tid)]
+        numbered = [tid for tid in tile_ids if TileUtils.is_numbered(tid)]
         
         # Get the group number and used colors
         if not numbered:
             raise JokerAssignmentError("Cannot determine group number with only jokers")
         
         # We know all numbered tiles have the same number from validation
-        first_numbered = numbered[0]
-        if not isinstance(first_numbered.kind, NumberedTile):
-            raise JokerAssignmentError("Expected NumberedTile")
-        group_number = first_numbered.kind.number
-        used_colors = {tile.kind.color for tile in numbered if isinstance(tile.kind, NumberedTile)}
+        group_number = TileUtils.get_number(numbered[0])
+        used_colors = {TileUtils.get_color(tid) for tid in numbered}
         
         # Assign jokers to available colors
         available_colors = set(Color) - used_colors
@@ -146,32 +164,27 @@ class Meld:
         
         joker_assignments = {}
         available_colors_list = list(available_colors)
-        for i, joker in enumerate(jokers):
+        for i, joker_id in enumerate(jokers):
             assigned_color = available_colors_list[i]
-            joker_assignments[joker.id] = NumberedTile(number=group_number, color=assigned_color)
+            joker_assignments[joker_id] = NumberedTile(number=group_number, color=assigned_color)
         
         return joker_assignments
     
-    def _assign_jokers_in_run(self, tiles: List["TileInstance"]) -> Dict[str, "NumberedTile"]:
+    def _assign_jokers_in_run(self, tile_ids: List[str]) -> Dict[str, NumberedTile]:
         """Assign jokers in a run meld and return their resolved values."""
-        from .tiles import NumberedTile
-        
-        # Separate jokers and numbered tiles
-        jokers = [(i, t) for i, t in enumerate(tiles) if t.is_joker]
-        numbered = [(i, t) for i, t in enumerate(tiles) if t.is_numbered]
+        # Separate jokers and numbered tiles with positions
+        jokers = [(i, tid) for i, tid in enumerate(tile_ids) if TileUtils.is_joker(tid)]
+        numbered = [(i, tid) for i, tid in enumerate(tile_ids) if TileUtils.is_numbered(tid)]
         
         # Get run color
         if not numbered:
             raise JokerAssignmentError("Cannot determine run color with only jokers")
         
         # We know all numbered tiles have the same color from validation  
-        first_numbered_tile = numbered[0][1]
-        if not isinstance(first_numbered_tile.kind, NumberedTile):
-            raise JokerAssignmentError("Expected NumberedTile")
-        run_color = first_numbered_tile.kind.color
+        run_color = TileUtils.get_color(numbered[0][1])
         
         # Get numbered positions and their values
-        numbered_positions = [(pos, tile.kind.number) for pos, tile in numbered if isinstance(tile.kind, NumberedTile)]
+        numbered_positions = [(pos, TileUtils.get_number(tid)) for pos, tid in numbered]
         
         # Determine the full sequence based on positions and numbers
         start_pos = numbered_positions[0][0]
@@ -189,48 +202,38 @@ class Meld:
                 raise InvalidMeldError("Run contains invalid numbers (must be 1-13)", "invalid-range")
         
         # Check sequence doesn't wrap around
-        expected_end = expected_start + len(tiles) - 1
+        expected_end = expected_start + len(tile_ids) - 1
         if expected_start < 1 or expected_end > 13:
             raise InvalidMeldError("Run sequence goes outside valid range (1-13)", "invalid-range")
         
         # Assign jokers to their positions in the sequence
         joker_assignments = {}
-        for pos, joker in jokers:
+        for pos, joker_id in jokers:
             expected_number = expected_start + pos
-            joker_assignments[joker.id] = NumberedTile(number=expected_number, color=run_color)
+            joker_assignments[joker_id] = NumberedTile(number=expected_number, color=run_color)
         
         return joker_assignments
     
-    def get_value(self, tile_instances: Dict[str, "TileInstance"]) -> int:
+    def get_value(self) -> int:
         """Calculate the face value of this meld.
         
-        Args:
-            tile_instances: Dictionary mapping tile IDs to tile instances
-            
         Returns:
             Sum of face values (jokers count as their represented value)
         """
-        from .tiles import NumberedTile
-        
-        tiles = [tile_instances[tile_id] for tile_id in self.tiles]
-        
         if self.kind == MeldKind.GROUP:
-            joker_assignments = self._assign_jokers_in_group(tiles)
+            joker_assignments = self._assign_jokers_in_group(self.tiles)
         else:  # RUN
-            joker_assignments = self._assign_jokers_in_run(tiles)
+            joker_assignments = self._assign_jokers_in_run(self.tiles)
         
         total = 0
-        for tile in tiles:
-            if tile.is_joker:
+        for tile_id in self.tiles:
+            if TileUtils.is_joker(tile_id):
                 # Get joker's assigned value
-                assigned_tile = joker_assignments[tile.id]
+                assigned_tile = joker_assignments[tile_id]
                 total += assigned_tile.number
             else:
                 # Regular numbered tile
-                if isinstance(tile.kind, NumberedTile):
-                    total += tile.kind.number
-                else:
-                    raise InvalidMeldError("Invalid tile type in meld")
+                total += TileUtils.get_number(tile_id)
         
         return total
     

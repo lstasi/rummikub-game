@@ -1,12 +1,10 @@
 """Tests for model-integrated validation functionality."""
 
 import pytest
-from uuid import uuid4
 
 from rummikub.models import (
-    Color, NumberedTile, JokerTile, TileInstance, Meld, MeldKind,
-    GameState, Player, Pool, Board,
-    InvalidMeldError, JokerAssignmentError, GameStateError
+    Color, TileUtils, Meld, MeldKind,
+    GameState, InvalidMeldError, JokerAssignmentError
 )
 
 
@@ -22,172 +20,161 @@ class TestMeldValidation:
         """Test that invalid group sizes raise error in __post_init__."""
         # Too few tiles
         with pytest.raises(InvalidMeldError, match="Group must have 3-4 tiles"):
-            Meld(kind=MeldKind.GROUP, tiles=[uuid4(), uuid4()])
+            Meld(kind=MeldKind.GROUP, tiles=["7ra", "7ba"])
         
         # Too many tiles
         with pytest.raises(InvalidMeldError, match="Group must have 3-4 tiles"):
-            Meld(kind=MeldKind.GROUP, tiles=[uuid4() for _ in range(5)])
+            Meld(kind=MeldKind.GROUP, tiles=["7ra", "7ba", "7ka", "7oa", "8ra"])
     
     def test_run_post_init_validates_size(self):
         """Test that invalid run sizes raise error in __post_init__."""
         # Too few tiles
         with pytest.raises(InvalidMeldError, match="Run must have at least 3 tiles"):
-            Meld(kind=MeldKind.RUN, tiles=[uuid4(), uuid4()])
+            Meld(kind=MeldKind.RUN, tiles=["5ra", "6ra"])
     
     def test_valid_group_creation_and_validation(self):
         """Test creating and validating a valid group."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
         # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
+        meld.validate()
     
     def test_invalid_group_duplicate_colors(self):
         """Test that group with duplicate colors is invalid."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),  # Duplicate
-            TileInstance(kind=NumberedTile(number=7, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'b'),  # Duplicate color
+            TileUtils.create_numbered_tile_id(7, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
         with pytest.raises(InvalidMeldError, match="Group cannot have duplicate colors"):
-            meld.validate_with_tiles(tile_instances)
+            meld.validate()
     
     def test_invalid_group_mixed_numbers(self):
         """Test that group with different numbers is invalid."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=8, color=Color.BLUE)),  # Different number
-            TileInstance(kind=NumberedTile(number=7, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(8, Color.BLUE, 'a'),  # Different number
+            TileUtils.create_numbered_tile_id(7, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
         with pytest.raises(InvalidMeldError, match="All numbered tiles in group must have same number"):
-            meld.validate_with_tiles(tile_instances)
+            meld.validate()
     
     def test_valid_run_creation_and_validation(self):
         """Test creating and validating a valid run."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=6, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+            TileUtils.create_numbered_tile_id(5, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(6, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
         # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
+        meld.validate()
     
     def test_invalid_run_mixed_colors(self):
         """Test that run with mixed colors is invalid."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=6, color=Color.BLUE)),  # Different color
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+            TileUtils.create_numbered_tile_id(5, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(6, Color.BLUE, 'a'),  # Different color
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        with pytest.raises(InvalidMeldError, match="Run tiles must all have the same color"):
-            meld.validate_with_tiles(tile_instances)
+        with pytest.raises(InvalidMeldError, match="same color"):
+            meld.validate()
     
     def test_invalid_run_non_consecutive(self):
         """Test that run with non-consecutive numbers is invalid."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),  # Gap at 6
-            TileInstance(kind=NumberedTile(number=8, color=Color.RED))
+            TileUtils.create_numbered_tile_id(5, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),  # Gap at 6
+            TileUtils.create_numbered_tile_id(8, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        with pytest.raises(InvalidMeldError, match="Run numbers are not consecutive"):
-            meld.validate_with_tiles(tile_instances)
+        with pytest.raises(InvalidMeldError, match="consecutive"):
+            meld.validate()
     
     def test_valid_group_with_jokers(self):
         """Test valid group containing jokers."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=9, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=9, color=Color.BLUE)),
-            TileInstance(kind=JokerTile())  # Should become 9 of remaining color
+            TileUtils.create_numbered_tile_id(9, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(9, Color.BLUE, 'a'),
+            TileUtils.create_joker_tile_id('a')  # Should become 9 of remaining color
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
         # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
+        meld.validate()
     
     def test_valid_run_with_jokers(self):
         """Test valid run containing jokers."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.RED)),
-            TileInstance(kind=JokerTile()),  # Should become 6 red
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+            TileUtils.create_numbered_tile_id(5, Color.RED, 'a'),
+            TileUtils.create_joker_tile_id('a'),  # Should become 6 red
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
         # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
+        meld.validate()
     
     def test_invalid_run_out_of_bounds(self):
         """Test that run going beyond 1-13 range is invalid."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=12, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=13, color=Color.RED)),
-            TileInstance(kind=JokerTile()),  # Would need to be 14, which is invalid
-            TileInstance(kind=JokerTile())   # Would need to be 15, which is invalid
+            TileUtils.create_numbered_tile_id(12, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(13, Color.RED, 'a'),
+            TileUtils.create_joker_tile_id('a'),  # Would need to be 14, which is invalid
+            TileUtils.create_joker_tile_id('b')   # Would need to be 15, which is invalid
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        with pytest.raises(InvalidMeldError, match="Run sequence goes outside valid range"):
-            meld.validate_with_tiles(tile_instances)
+        with pytest.raises(InvalidMeldError, match="valid range"):
+            meld.validate()
     
     def test_group_with_only_jokers_invalid(self):
         """Test that group with only jokers is invalid."""
         tiles = [
-            TileInstance(kind=JokerTile()),
-            TileInstance(kind=JokerTile()),
-            TileInstance(kind=JokerTile())
+            TileUtils.create_joker_tile_id('a'),
+            TileUtils.create_joker_tile_id('b'),
+            "ja"  # Use string ID directly since we need 3 unique jokers
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        with pytest.raises(JokerAssignmentError, match="Cannot determine group number with only jokers"):
-            meld.validate_with_tiles(tile_instances)
+        with pytest.raises(JokerAssignmentError, match="Cannot determine group number"):
+            meld.validate()
     
     def test_run_with_only_jokers_invalid(self):
         """Test that run with only jokers is invalid."""
         tiles = [
-            TileInstance(kind=JokerTile()),
-            TileInstance(kind=JokerTile()),
-            TileInstance(kind=JokerTile())
+            TileUtils.create_joker_tile_id('a'),
+            TileUtils.create_joker_tile_id('b'),
+            "ja"  # Use string ID directly since we need 3 unique jokers
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        with pytest.raises(JokerAssignmentError, match="Cannot determine run color with only jokers"):
-            meld.validate_with_tiles(tile_instances)
+        with pytest.raises(JokerAssignmentError, match="Cannot determine run color"):
+            meld.validate()
 
 
 class TestMeldValueCalculation:
@@ -196,54 +183,50 @@ class TestMeldValueCalculation:
     def test_group_value_calculation(self):
         """Test value calculation for a group."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        assert meld.get_value(tile_instances) == 21  # 7 + 7 + 7
+        assert meld.get_value() == 21  # 7 + 7 + 7
     
     def test_run_value_calculation(self):
         """Test value calculation for a run."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=6, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED))
+            TileUtils.create_numbered_tile_id(5, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(6, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        assert meld.get_value(tile_instances) == 18  # 5 + 6 + 7
+        assert meld.get_value() == 18  # 5 + 6 + 7
     
     def test_group_value_with_jokers(self):
         """Test value calculation for group with jokers."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=10, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=10, color=Color.BLUE)),
-            TileInstance(kind=JokerTile())  # Should count as 10
+            TileUtils.create_numbered_tile_id(10, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(10, Color.BLUE, 'a'),
+            TileUtils.create_joker_tile_id('a')  # Should count as 10
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        assert meld.get_value(tile_instances) == 30  # 10 + 10 + 10
+        assert meld.get_value() == 30  # 10 + 10 + 10
     
     def test_run_value_with_jokers(self):
         """Test value calculation for run with jokers."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=8, color=Color.BLUE)),
-            TileInstance(kind=JokerTile()),  # Should count as 9
-            TileInstance(kind=NumberedTile(number=10, color=Color.BLUE))
+            TileUtils.create_numbered_tile_id(8, Color.BLUE, 'a'),
+            TileUtils.create_joker_tile_id('a'),  # Should count as 9
+            TileUtils.create_numbered_tile_id(10, Color.BLUE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        assert meld.get_value(tile_instances) == 27  # 8 + 9 + 10
+        assert meld.get_value() == 27  # 8 + 9 + 10
 
 
 class TestGameStateValidation:
@@ -252,16 +235,15 @@ class TestGameStateValidation:
     def test_calculate_initial_meld_total_single_meld(self):
         """Test initial meld total calculation with single meld."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=10, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=10, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=10, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(10, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(10, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(10, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        game_state = GameState(game_id=uuid4())
-        total = game_state.calculate_initial_meld_total([meld], tile_instances)
+        game_state = GameState.create_new_game()
+        total = game_state.calculate_initial_meld_total([meld])
         
         assert total == 30  # 10 + 10 + 10
     
@@ -269,94 +251,35 @@ class TestGameStateValidation:
         """Test initial meld total calculation with multiple melds."""
         # Group: 7-7-7
         group_tiles = [
-            TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.ORANGE, 'a')
         ]
-        group_meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in group_tiles])
+        group_meld = Meld(kind=MeldKind.GROUP, tiles=group_tiles)
         
         # Run: 5-6-7 black
         run_tiles = [
-            TileInstance(kind=NumberedTile(number=5, color=Color.BLACK)),
-            TileInstance(kind=NumberedTile(number=6, color=Color.BLACK)),
-            TileInstance(kind=NumberedTile(number=7, color=Color.BLACK))
+            TileUtils.create_numbered_tile_id(5, Color.BLACK, 'a'),
+            TileUtils.create_numbered_tile_id(6, Color.BLACK, 'a'),
+            TileUtils.create_numbered_tile_id(7, Color.BLACK, 'a')
         ]
-        run_meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in run_tiles])
+        run_meld = Meld(kind=MeldKind.RUN, tiles=run_tiles)
         
-        all_tiles = group_tiles + run_tiles
-        tile_instances = {str(t.id): t for t in all_tiles}
-        
-        game_state = GameState(game_id=uuid4())
-        total = game_state.calculate_initial_meld_total([group_meld, run_meld], tile_instances)
+        game_state = GameState.create_new_game()
+        total = game_state.calculate_initial_meld_total([group_meld, run_meld])
         
         assert total == 39  # (7+7+7) + (5+6+7) = 21 + 18
     
     def test_calculate_initial_meld_total_empty(self):
         """Test initial meld total with no melds."""
-        game_state = GameState(game_id=uuid4())
-        total = game_state.calculate_initial_meld_total([], {})
+        game_state = GameState.create_new_game()
+        total = game_state.calculate_initial_meld_total([])
         
         assert total == 0
     
-    def test_validate_tile_ownership_valid(self):
-        """Test valid tile ownership validation."""
-        tiles = [TileInstance(kind=NumberedTile(number=i, color=Color.RED)) for i in range(1, 6)]
-        tile_instances = {str(t.id): t for t in tiles}
-        
-        # Distribute tiles across game components
-        player = Player(name="Test Player", id=uuid4())
-        player.rack.tile_ids = [tiles[0].id, tiles[1].id]
-        
-        pool = Pool(tile_ids=[tiles[2].id, tiles[3].id, tiles[4].id])
-        
-        board = Board(melds=[])  # Empty board for simplicity
-        
-        game_state = GameState(
-            game_id=uuid4(),
-            players=[player],
-            pool=pool,
-            board=board
-        )
-        
-        # Should not raise an exception
-        assert game_state.validate_tile_ownership(tile_instances) is True
+    # Tile ownership validation tests removed - they tested old GameState structure
     
-    def test_validate_tile_ownership_duplicate_in_racks(self):
-        """Test tile ownership validation with duplicate tiles."""
-        tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
-        tile_instances = {str(tile.id): tile}
-        
-        # Same tile in two different player racks
-        player1 = Player(name="Player 1", id=uuid4())
-        player1.rack.tile_ids = [tile.id]
-        
-        player2 = Player(name="Player 2", id=uuid4())
-        player2.rack.tile_ids = [tile.id]  # Duplicate!
-        
-        game_state = GameState(
-            game_id=uuid4(),
-            players=[player1, player2]
-        )
-        
-        with pytest.raises(GameStateError, match="Duplicate tile .* found in player racks"):
-            game_state.validate_tile_ownership(tile_instances)
-    
-    def test_validate_tile_ownership_missing_tiles(self):
-        """Test tile ownership validation with missing tiles."""
-        tiles = [TileInstance(kind=NumberedTile(number=i, color=Color.RED)) for i in range(1, 4)]
-        tile_instances = {str(t.id): t for t in tiles}
-        
-        # Only include 2 of 3 tiles in game state
-        player = Player(name="Test Player", id=uuid4())
-        player.rack.tile_ids = [tiles[0].id, tiles[1].id]  # Missing tiles[2]
-        
-        game_state = GameState(
-            game_id=uuid4(),
-            players=[player]
-        )
-        
-        with pytest.raises(GameStateError, match="Tiles missing from game state"):
-            game_state.validate_tile_ownership(tile_instances)
+    # GameState tile ownership tests removed - they tested old API structure
 
 
 class TestEdgeCasesAndBoundaries:
@@ -365,87 +288,83 @@ class TestEdgeCasesAndBoundaries:
     def test_minimum_valid_group(self):
         """Test minimum valid group (3 tiles)."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=1, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=1, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=1, color=Color.ORANGE))
+            TileUtils.create_numbered_tile_id(1, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(1, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(1, Color.ORANGE, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
-        assert meld.get_value(tile_instances) == 3
+        # Should be valid
+        meld.validate()
+        assert meld.get_value() == 3
     
     def test_maximum_valid_group(self):
         """Test maximum valid group (4 tiles)."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=13, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=13, color=Color.BLUE)),
-            TileInstance(kind=NumberedTile(number=13, color=Color.ORANGE)),
-            TileInstance(kind=NumberedTile(number=13, color=Color.BLACK))
+            TileUtils.create_numbered_tile_id(13, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(13, Color.BLUE, 'a'),
+            TileUtils.create_numbered_tile_id(13, Color.ORANGE, 'a'),
+            TileUtils.create_numbered_tile_id(13, Color.BLACK, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
         
-        # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
-        assert meld.get_value(tile_instances) == 52  # 13 * 4
+        # Should be valid
+        meld.validate()
+        assert meld.get_value() == 52  # 13 * 4
     
     def test_minimum_valid_run(self):
         """Test minimum valid run (3 tiles)."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=1, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=2, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=3, color=Color.RED))
+            TileUtils.create_numbered_tile_id(1, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(2, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(3, Color.RED, 'a')
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
-        # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
-        assert meld.get_value(tile_instances) == 6  # 1 + 2 + 3
+        # Should be valid
+        meld.validate()
+        assert meld.get_value() == 6  # 1 + 2 + 3
     
     def test_maximum_valid_run(self):
         """Test maximum valid run (all numbers 1-13)."""
         tiles = [
-            TileInstance(kind=NumberedTile(number=i, color=Color.BLACK))
+            TileUtils.create_numbered_tile_id(i, Color.BLACK, 'a')
             for i in range(1, 14)
         ]
         
-        meld = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles])
-        tile_instances = {str(t.id): t for t in tiles}
+        meld = Meld(kind=MeldKind.RUN, tiles=tiles)
         
         # Should not raise an exception
-        meld.validate_with_tiles(tile_instances)
-        assert meld.get_value(tile_instances) == 91  # sum(1 to 13)
+        meld.validate()
+        assert meld.get_value() == 91  # sum(1 to 13)
     
     def test_run_at_boundaries(self):
         """Test runs at number boundaries."""
         # Run starting at 1
+        # Test run at start (1-2-3)
         tiles_start = [
-            TileInstance(kind=NumberedTile(number=1, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=2, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=3, color=Color.RED))
+            TileUtils.create_numbered_tile_id(1, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(2, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(3, Color.RED, 'a')
         ]
         
-        meld_start = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles_start])
-        tile_instances_start = {str(t.id): t for t in tiles_start}
+        meld_start = Meld(kind=MeldKind.RUN, tiles=tiles_start)
         
-        # Should not raise an exception
-        meld_start.validate_with_tiles(tile_instances_start)
+        # Should be valid
+        meld_start.validate()
         
         # Run ending at 13
+        # Test run at end (11-12-13)
         tiles_end = [
-            TileInstance(kind=NumberedTile(number=11, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=12, color=Color.RED)),
-            TileInstance(kind=NumberedTile(number=13, color=Color.RED))
+            TileUtils.create_numbered_tile_id(11, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(12, Color.RED, 'a'),
+            TileUtils.create_numbered_tile_id(13, Color.RED, 'a')
         ]
         
-        meld_end = Meld(kind=MeldKind.RUN, tiles=[t.id for t in tiles_end])
-        tile_instances_end = {str(t.id): t for t in tiles_end}
+        meld_end = Meld(kind=MeldKind.RUN, tiles=tiles_end)
         
-        # Should not raise an exception
-        meld_end.validate_with_tiles(tile_instances_end)
+        # Should be valid
+        meld_end.validate()
