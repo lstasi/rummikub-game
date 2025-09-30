@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let serverGameState = null; // State from server
     let localBoardState = null; // Local modifications for current turn
     let playerRackState = null; // Local rack state
+    let initialTurnBoardState = null; // Board state at start of turn
+    let initialTurnRackState = null; // Rack state at start of turn
     let selectedTiles = new Set();
     let selectedMelds = new Set();
     let playerId = null;
@@ -86,6 +88,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <pre>${JSON.stringify(localBoardState, null, 2)}</pre>
             <p><strong>Player Rack:</strong></p>
             <pre>${JSON.stringify(playerRackState, null, 2)}</pre>
+            <p><strong>Initial Turn Board:</strong></p>
+            <pre>${JSON.stringify(initialTurnBoardState, null, 2)}</pre>
+            <p><strong>Initial Turn Rack:</strong></p>
+            <pre>${JSON.stringify(initialTurnRackState, null, 2)}</pre>
             <p><strong>Selected Tiles:</strong> ${Array.from(selectedTiles).join(', ')}</p>
             <p><strong>Selected Melds:</strong> ${Array.from(selectedMelds).join(', ')}</p>
         `;
@@ -139,6 +145,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset player rack state
         const myPlayer = serverGameState?.players.find(p => p.id === playerId);
         playerRackState = {
+            tiles: myPlayer?.rack ? [...myPlayer.rack.tiles] : []
+        };
+        
+        // Capture initial turn state for reset functionality
+        initialTurnBoardState = {
+            melds: serverGameState ? [...serverGameState.board.melds] : []
+        };
+        initialTurnRackState = {
             tiles: myPlayer?.rack ? [...myPlayer.rack.tiles] : []
         };
         
@@ -373,10 +387,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hasSelectedTiles = selectedTiles.size > 0;
         const hasSelectedMelds = selectedMelds.size > 0;
         
+        // Check if selected melds contain group melds (for break action)
+        const hasGroupMelds = Array.from(selectedMelds).some(meldId => {
+            const meld = localBoardState.melds.find(m => m.id === meldId);
+            return meld && meld.kind === 'group';
+        });
+        
+        // Check if selected melds are all individual tiles (for group action)
+        const hasOnlyIndividualTiles = Array.from(selectedMelds).every(meldId => {
+            const meld = localBoardState.melds.find(m => m.id === meldId);
+            return meld && meld.kind === 'individual';
+        }) && selectedMelds.size >= 2;
+        
+        // Check if selected melds can be removed (individual tiles that were originally in rack)
+        const canRemoveFromBoard = Array.from(selectedMelds).some(meldId => {
+            const meld = localBoardState.melds.find(m => m.id === meldId);
+            if (meld && meld.kind === 'individual') {
+                return meld.tiles.some(tileId => initialTurnRackState?.tiles.includes(tileId));
+            }
+            return false;
+        });
+        
         pushToBoardBtn.disabled = !isMyTurn || !hasSelectedTiles;
-        removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds;
-        breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds;
-        groupMeldBtn.disabled = !isMyTurn || selectedMelds.size < 2;
+        removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds || !canRemoveFromBoard;
+        breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasGroupMelds;
+        groupMeldBtn.disabled = !isMyTurn || !hasOnlyIndividualTiles;
         drawTileBtn.disabled = !isMyTurn;
         endTurnBtn.disabled = !isMyTurn;
     }
@@ -397,19 +432,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     function pushToBoard() {
         if (selectedTiles.size === 0) return;
         
-        // Create a new meld with selected tiles
+        // Create individual tile "melds" for each selected tile (UI representation)
         const selectedTilesArray = Array.from(selectedTiles);
-        const newMeld = {
-            id: `meld-${Date.now()}`,
-            kind: 'group', // Default to group, player can change later
-            tiles: selectedTilesArray
-        };
-        
-        // Add to local board state
-        localBoardState.melds.push(newMeld);
-        
-        // Remove tiles from local rack
         selectedTilesArray.forEach(tileId => {
+            const individualMeld = {
+                id: `meld-${Date.now()}-${Math.random()}`,
+                kind: 'individual', // Individual tile, not a group or run
+                tiles: [tileId]
+            };
+            
+            // Add to local board state as individual tile
+            localBoardState.melds.push(individualMeld);
+            
+            // Remove tile from local rack
             const index = playerRackState.tiles.indexOf(tileId);
             if (index > -1) {
                 playerRackState.tiles.splice(index, 1);
@@ -423,19 +458,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     function removeFromBoard() {
         if (selectedMelds.size === 0) return;
         
-        // Move tiles from selected melds back to rack
+        // Only allow removing tiles that were originally in rack at turn start
+        // and prevent removing tiles that are part of actual melds (groups/runs)
         selectedMelds.forEach(meldId => {
             const meld = localBoardState.melds.find(m => m.id === meldId);
             if (meld) {
-                // Add tiles back to rack
-                playerRackState.tiles.push(...meld.tiles);
+                // Don't allow removing actual melds (groups/runs), only individual tiles
+                if (meld.kind === 'group' || meld.kind === 'run') {
+                    return; // Skip this meld
+                }
+                
+                // Check if these tiles were originally in the player's rack
+                const tilesFromOriginalRack = meld.tiles.filter(tileId => 
+                    initialTurnRackState.tiles.includes(tileId)
+                );
+                
+                // Only move tiles that were originally in rack back to rack
+                if (tilesFromOriginalRack.length > 0) {
+                    playerRackState.tiles.push(...tilesFromOriginalRack);
+                }
             }
         });
         
-        // Remove selected melds from board
-        localBoardState.melds = localBoardState.melds.filter(
-            meld => !selectedMelds.has(meld.id)
-        );
+        // Remove selected melds from board (only individual tiles, not actual melds)
+        localBoardState.melds = localBoardState.melds.filter(meld => {
+            if (selectedMelds.has(meld.id)) {
+                // Only remove individual tiles, not actual melds
+                return meld.kind === 'group' || meld.kind === 'run';
+            }
+            return true;
+        });
         
         selectedMelds.clear();
         updateUI();
@@ -444,19 +496,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     function breakMeld() {
         if (selectedMelds.size === 0) return;
         
-        // Break selected melds into individual tiles and return to rack
+        // Only break Group Melds (not runs or individual tiles)
         selectedMelds.forEach(meldId => {
             const meld = localBoardState.melds.find(m => m.id === meldId);
-            if (meld) {
-                // Add tiles back to rack
-                playerRackState.tiles.push(...meld.tiles);
+            if (meld && meld.kind === 'group') {
+                // Create individual tile "melds" for each tile in the group
+                meld.tiles.forEach(tileId => {
+                    const individualMeld = {
+                        id: `meld-${Date.now()}-${Math.random()}`,
+                        kind: 'individual',
+                        tiles: [tileId]
+                    };
+                    localBoardState.melds.push(individualMeld);
+                });
             }
         });
         
-        // Remove selected melds from board
-        localBoardState.melds = localBoardState.melds.filter(
-            meld => !selectedMelds.has(meld.id)
-        );
+        // Remove selected group melds from board
+        localBoardState.melds = localBoardState.melds.filter(meld => {
+            if (selectedMelds.has(meld.id)) {
+                // Only remove group melds
+                return meld.kind !== 'group';
+            }
+            return true;
+        });
         
         selectedMelds.clear();
         updateUI();
@@ -465,23 +528,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     function groupMeld() {
         if (selectedMelds.size < 2) return;
         
-        // Combine selected melds into one new meld
+        // Only group individual tiles (not existing groups or runs)
         const selectedMeldObjects = localBoardState.melds.filter(
-            meld => selectedMelds.has(meld.id)
+            meld => selectedMelds.has(meld.id) && meld.kind === 'individual'
         );
+        
+        if (selectedMeldObjects.length < 2) return; // Need at least 2 individual tiles
+        
+        // Combine individual tiles into one new group meld
         const allTiles = selectedMeldObjects.flatMap(meld => meld.tiles);
         
-        const newMeld = {
+        const newGroupMeld = {
             id: `meld-${Date.now()}`,
-            kind: 'group', // Player can change this later
+            kind: 'group', // Create a group meld
             tiles: allTiles
         };
         
-        // Remove selected melds and add new combined meld
-        localBoardState.melds = localBoardState.melds.filter(
-            meld => !selectedMelds.has(meld.id)
-        );
-        localBoardState.melds.push(newMeld);
+        // Remove selected individual tile melds and add new group meld
+        localBoardState.melds = localBoardState.melds.filter(meld => {
+            if (selectedMelds.has(meld.id)) {
+                // Only remove individual tiles
+                return meld.kind !== 'individual';
+            }
+            return true;
+        });
+        localBoardState.melds.push(newGroupMeld);
         
         selectedMelds.clear();
         updateUI();
@@ -524,8 +595,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function resetTurn() {
-        // Reset local state back to server state
-        resetLocalState();
+        // Reset local state back to initial turn state (no API calls)
+        localBoardState = {
+            melds: initialTurnBoardState ? [...initialTurnBoardState.melds] : []
+        };
+        playerRackState = {
+            tiles: initialTurnRackState ? [...initialTurnRackState.tiles] : []
+        };
+        
+        // Clear selections
+        selectedTiles.clear();
+        selectedMelds.clear();
+        
         updateUI();
     }
     
