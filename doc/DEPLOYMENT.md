@@ -32,6 +32,47 @@ The API will be available at:
 - **ReDoc Documentation**: http://localhost:8000/redoc
 - **Health Check**: http://localhost:8000/health
 
+## Using Pre-built Docker Images
+
+Pre-built Docker images are automatically published to GitHub Container Registry (ghcr.io) on each push to the main branch and for tagged releases.
+
+### Pull and Run Pre-built Image
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/lstasi/rummikub-game:latest
+
+# Run with Redis
+docker run -d --name rummikub-redis redis:7-alpine
+docker run -d --name rummikub-api -p 8000:8000 \
+  -e REDIS_URL=redis://rummikub-redis:6379/0 \
+  --link rummikub-redis:redis \
+  ghcr.io/lstasi/rummikub-game:latest
+```
+
+### Using Tagged Versions
+
+```bash
+# Pull a specific version
+docker pull ghcr.io/lstasi/rummikub-game:v1.0.0
+
+# Or use major/minor tags
+docker pull ghcr.io/lstasi/rummikub-game:1.0
+docker pull ghcr.io/lstasi/rummikub-game:1
+```
+
+### Automated Builds
+
+Docker images are automatically built and pushed by GitHub Actions:
+- **Workflow**: `.github/workflows/docker.yml`
+- **Triggers**: Push to main branch, tag creation (v*)
+- **Registry**: GitHub Container Registry (ghcr.io)
+- **Tags**: 
+  - `latest` - Latest build from main branch
+  - `v{version}` - Specific version tags (e.g., v1.0.0)
+  - `{major}.{minor}` - Major/minor version tags (e.g., 1.0)
+  - `{major}` - Major version tag (e.g., 1)
+
 ## Services
 
 ### API Service (`api`)
