@@ -241,7 +241,11 @@ class TestGameSimulation:
         "simple_win_scenario.json",
         "draw_only_scenario.json",
         "three_player_scenario.json",
-        "pool_empty_scenario.json"
+        "pool_empty_scenario.json",
+        "empty_board_scenario.json",
+        "missing_tiles_scenario.json",
+        "extra_tiles_scenario.json",
+        "incomplete_melds_scenario.json"
     ])
     def test_game_scenario_parametrized(self, scenario_file: str):
         """Parametrized test for different game scenarios.
