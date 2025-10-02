@@ -16,7 +16,7 @@ services:
 
   rummikub:
     build: .
-    container_name: rummikub-api
+    container_name: rummikub
     ports:
       - "8090:8090"
     environment:
