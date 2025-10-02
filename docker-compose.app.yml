@@ -1,5 +1,5 @@
 services:
-  api:
+  rummikub:
     image: ghcr.io/lstasi/rummikub-game:latest
     container_name: rummikub-api
     ports:
