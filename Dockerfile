@@ -27,6 +27,8 @@ RUN pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted
 # Copy source code
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY static/ ./static/
+COPY main.py ./
 
 # Install the package in editable mode
 RUN pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -e .
@@ -36,7 +38,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Run the FastAPI application
-CMD ["uvicorn", "rummikub.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application via main.py
+CMD ["python", "main.py", "--host", "0.0.0.0", "--port", "8000"]
