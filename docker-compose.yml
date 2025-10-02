@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
+  rummikub:
     build: .
     container_name: rummikub-api
     ports:
