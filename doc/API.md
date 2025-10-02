@@ -17,7 +17,7 @@ The API provides a stateless REST interface over the GameService layer, with aut
 ## Base Configuration
 
 ```
-Base URL: http://localhost:8000/api/v1
+Base URL: http://localhost:8090/api/v1
 Content-Type: application/json
 ```
 

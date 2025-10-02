@@ -27,10 +27,10 @@ docker compose down
 ```
 
 The API will be available at:
-- **API Endpoints**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **ReDoc Documentation**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
+- **API Endpoints**: http://localhost:8090
+- **API Documentation**: http://localhost:8090/docs
+- **ReDoc Documentation**: http://localhost:8090/redoc
+- **Health Check**: http://localhost:8090/health
 
 ## Using Pre-built Docker Images
 
@@ -44,7 +44,7 @@ docker pull ghcr.io/lstasi/rummikub-game:latest
 
 # Run with Redis
 docker run -d --name rummikub-redis redis:7-alpine
-docker run -d --name rummikub-api -p 8000:8000 \
+docker run -d --name rummikub-api -p 8090:8090 \
   -e REDIS_URL=redis://rummikub-redis:6379/0 \
   --link rummikub-redis:redis \
   ghcr.io/lstasi/rummikub-game:latest
@@ -80,7 +80,7 @@ Docker images are automatically built and pushed by GitHub Actions:
 The FastAPI application serving the game REST endpoints.
 
 - **Image**: Built from local Dockerfile
-- **Port**: 8000 (mapped to host port 8000)
+- **Port**: 8090 (mapped to host port 8090)
 - **Health Check**: GET /health endpoint
 - **Dependencies**: Redis service
 
@@ -116,6 +116,23 @@ Then use:
 docker compose --env-file .env up
 ```
 
+## App-Only Deployment
+
+For environments where Redis is already deployed separately (e.g., existing infrastructure), use the app-only compose file:
+
+```bash
+# Set Redis URL to your existing Redis instance
+export REDIS_URL=redis://your-redis-host:6379/0
+
+# Start only the API service
+docker compose -f docker-compose.app.yml up -d
+
+# Or provide Redis URL inline
+REDIS_URL=redis://your-redis-host:6379/0 docker compose -f docker-compose.app.yml up -d
+```
+
+The `docker-compose.app.yml` file deploys only the API service without Redis, assuming Redis is already available.
+
 ## Development Setup
 
 ### Option 1: Using main.py (Recommended)
@@ -129,7 +146,7 @@ pip install -e .[dev]
 # Run Redis in Docker
 docker compose up redis -d
 
-# Run API locally with hot reload
+# Run API locally with hot reload (defaults to port 8090)
 python main.py --reload
 
 # Or run on a different port
@@ -142,7 +159,7 @@ python main.py --reload --host 0.0.0.0
 The `main.py` script provides:
 - Automatic Redis connection checking
 - Hot reload support for development
-- Configurable host and port
+- Configurable host and port (defaults to 8090)
 - Helpful error messages and setup instructions
 
 ### Option 2: Using uvicorn directly
@@ -155,7 +172,7 @@ pip install -e .[dev]
 docker compose up redis -d
 
 # Run API locally with auto-reload
-REDIS_URL=redis://localhost:6379/0 uvicorn rummikub.api:app --reload --host 0.0.0.0 --port 8000
+REDIS_URL=redis://localhost:6379/0 uvicorn rummikub.api:app --reload --host 0.0.0.0 --port 8090
 ```
 
 ## Production Considerations
@@ -207,7 +224,7 @@ Use these for orchestrator health checks (Kubernetes, Docker Swarm).
 1. **Port Already in Use**:
    ```bash
    # Check what's using the port
-   lsof -i :8000
+   lsof -i :8090
    # Kill the process or change the port mapping
    docker compose -f docker compose.yml up
    ```

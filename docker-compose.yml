@@ -14,11 +14,11 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
+  rummikub:
     build: .
-    container_name: rummikub-api
+    container_name: rummikub
     ports:
-      - "8000:8000"
+      - "8090:8090"
     environment:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
@@ -26,7 +26,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
