@@ -1,7 +1,7 @@
 services:
   rummikub:
     image: ghcr.io/lstasi/rummikub-game:latest
-    container_name: rummikub-api
+    container_name: rummikub
     ports:
       - "8090:8090"
     environment:
