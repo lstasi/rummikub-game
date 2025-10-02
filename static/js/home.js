@@ -65,10 +65,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             `<button class="btn btn-primary join-btn" data-game-id="${game.game_id}">Join Game</button>` :
             `<button class="btn btn-secondary" disabled>Game ${game.status.replace('_', ' ')}</button>`;
         
+        // Create player links
+        let playersSection = '';
+        if (game.players && game.players.length > 0) {
+            const playerLinks = game.players.map(player => 
+                `<a href="#" class="player-link" data-game-id="${game.game_id}" data-player-name="${player.name}">${player.name}</a>`
+            ).join(', ');
+            playersSection = `<p>Players: ${playerLinks}</p>`;
+        }
+        
         card.innerHTML = `
             <h3>Game ${Utils.shortId(game.game_id)}</h3>
             <p><span class="game-status ${statusClass}">${game.status.replace('_', ' ')}</span></p>
-            <p>Players: ${game.num_players}/${game.num_players}</p>
+            <p>Players: ${game.players.length}/${game.num_players}</p>
+            ${playersSection}
             <p>Created: ${Utils.formatTime(game.created_at)}</p>
             <div style="margin-top: 15px;">
                 ${joinButton}
@@ -83,6 +93,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Utils.navigateTo('join', { game_id: gameId });
             });
         }
+        
+        // Add player link functionality
+        const playerLinks = card.querySelectorAll('.player-link');
+        playerLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const gameId = link.dataset.gameId;
+                const playerName = link.dataset.playerName;
+                Utils.navigateTo('join', { game_id: gameId, name: playerName });
+            });
+        });
         
         return card;
     }

@@ -114,7 +114,7 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
     return GameStateResponse(
         game_id=str(game_state.game_id),
         status=game_state.status.value,
-        num_players=len(game_state.players),
+        num_players=game_state.num_players,
         players=players,
         current_player_index=game_state.current_player_index,
         pool_size=len(game_state.pool),
