@@ -561,7 +561,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function drawTile() {
         try {
             await API.drawTile(gameId, playerId);
-            // Polling will update the UI when server responds
+            // Immediately reload game state to refresh board and rack
+            const response = await API.getGameState(gameId, playerId);
+            serverGameState = response;
+            resetLocalState();
+            updateUI();
         } catch (error) {
             showApiError(error, 'Failed to draw tile');
         }
@@ -583,7 +587,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }));
                 
                 await API.playTiles(gameId, playerId, meldsToSend);
-                // Polling will update the UI when server responds
+                // Immediately reload game state to refresh board and rack
+                const response = await API.getGameState(gameId, playerId);
+                serverGameState = response;
+                resetLocalState();
+                updateUI();
             } catch (error) {
                 showApiError(error, 'Failed to play tiles. Check the error above and fix your melds.');
                 return;
