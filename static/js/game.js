@@ -393,11 +393,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return meld && meld.kind === 'group';
         });
         
-        // Check if selected melds are all individual tiles (for group action)
-        const hasOnlyIndividualTiles = Array.from(selectedMelds).every(meldId => {
-            const meld = localBoardState.melds.find(m => m.id === meldId);
-            return meld && meld.kind === 'individual';
-        }) && selectedMelds.size >= 2;
+        // Check if we can group melds (need at least 2 melds of any kind)
+        const canGroupMelds = selectedMelds.size >= 2;
         
         // Check if selected melds can be removed (individual tiles that were originally in rack)
         const canRemoveFromBoard = Array.from(selectedMelds).some(meldId => {
@@ -411,7 +408,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         pushToBoardBtn.disabled = !isMyTurn || !hasSelectedTiles;
         removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds || !canRemoveFromBoard;
         breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasGroupMelds;
-        groupMeldBtn.disabled = !isMyTurn || !hasOnlyIndividualTiles;
+        groupMeldBtn.disabled = !isMyTurn || !canGroupMelds;
         drawTileBtn.disabled = !isMyTurn;
         endTurnBtn.disabled = !isMyTurn;
     }
@@ -528,34 +525,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     function groupMeld() {
         if (selectedMelds.size < 2) return;
         
-        // Only group individual tiles (not existing groups or runs)
+        // Get all selected melds (individual tiles and existing melds)
         const selectedMeldObjects = localBoardState.melds.filter(
-            meld => selectedMelds.has(meld.id) && meld.kind === 'individual'
+            meld => selectedMelds.has(meld.id)
         );
         
-        if (selectedMeldObjects.length < 2) return; // Need at least 2 individual tiles
+        if (selectedMeldObjects.length < 2) return; // Need at least 2 melds
         
-        // Combine individual tiles into one new group meld
+        // Combine all tiles from selected melds
         const allTiles = selectedMeldObjects.flatMap(meld => meld.tiles);
         
-        const newGroupMeld = {
+        // Determine if this should be a group or run based on tiles
+        const meldKind = detectMeldKind(allTiles);
+        
+        // Sort tiles if it's a run
+        let sortedTiles = allTiles;
+        if (meldKind === 'run') {
+            sortedTiles = sortTilesForRun(allTiles);
+        }
+        
+        const newMeld = {
             id: `meld-${Date.now()}`,
-            kind: 'group', // Create a group meld
-            tiles: allTiles
+            kind: meldKind,
+            tiles: sortedTiles
         };
         
-        // Remove selected individual tile melds and add new group meld
+        // Remove all selected melds and add new combined meld
         localBoardState.melds = localBoardState.melds.filter(meld => {
-            if (selectedMelds.has(meld.id)) {
-                // Only remove individual tiles
-                return meld.kind !== 'individual';
-            }
-            return true;
+            return !selectedMelds.has(meld.id);
         });
-        localBoardState.melds.push(newGroupMeld);
+        localBoardState.melds.push(newMeld);
         
         selectedMelds.clear();
         updateUI();
+    }
+    
+    function detectMeldKind(tiles) {
+        // Try to detect if tiles form a run or group
+        // For simplicity, check if all numbered tiles have same number (group) or same color (run)
+        const numberedTiles = tiles.filter(t => !t.startsWith('j'));
+        
+        if (numberedTiles.length === 0) {
+            // Only jokers - default to group
+            return 'group';
+        }
+        
+        // Extract numbers and colors
+        const numbers = numberedTiles.map(t => {
+            const match = t.match(/^(\d+)/);
+            return match ? parseInt(match[1]) : 0;
+        });
+        
+        const colors = numberedTiles.map(t => {
+            const match = t.match(/[krbo]/);
+            return match ? match[0] : '';
+        });
+        
+        // Check if all have same number (potential group)
+        const allSameNumber = numbers.every(n => n === numbers[0]);
+        
+        // Check if all have same color (potential run)
+        const allSameColor = colors.every(c => c === colors[0]);
+        
+        // If all same color and different numbers, it's likely a run
+        if (allSameColor && !allSameNumber) {
+            return 'run';
+        }
+        
+        // Default to group
+        return 'group';
+    }
+    
+    function sortTilesForRun(tiles) {
+        // Sort tiles by their number value
+        // For runs, we need to sort numbered tiles and keep jokers in relative positions
+        // The backend will handle joker validation and assignment
+        const numberedTiles = tiles.filter(t => !t.startsWith('j'));
+        const jokerTiles = tiles.filter(t => t.startsWith('j'));
+        
+        // Sort numbered tiles by number
+        numberedTiles.sort((a, b) => {
+            const aNum = parseInt(a.match(/^(\d+)/)?.[1] || '0');
+            const bNum = parseInt(b.match(/^(\d+)/)?.[1] || '0');
+            return aNum - bNum;
+        });
+        
+        // For now, append jokers at the end
+        // The backend validation will properly handle joker positions
+        return [...numberedTiles, ...jokerTiles];
     }
     
     async function drawTile() {
