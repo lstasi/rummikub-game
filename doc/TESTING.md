@@ -37,7 +37,7 @@ pytest tests/models/model_validation_tests.py -v
 
 The project uses GitHub Actions for automated testing:
 - **Triggers**: Push to main branch, pull requests to main
-- **Python versions**: 3.11, 3.12
+- **Python version**: 3.13
 - **Test coverage**: Collected and can be uploaded to Codecov
 - **Workflow**: `.github/workflows/ci.yml`
 

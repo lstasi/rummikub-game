@@ -32,7 +32,7 @@ Pending (see `TODO.md` for the full list):
 
 ## Technology
 
-- Python >= 3.11, Pydantic, FastAPI, Redis
+- Python >= 3.13, Pydantic, FastAPI, Redis
 - pytest for testing
 - Docker + docker-compose for local runs
 - GitHub Actions for CI/CD
@@ -55,7 +55,7 @@ pytest --cov=src --cov-report=term-missing
 The project automatically runs tests on:
 - Push to main branch
 - Pull requests to main branch  
-- Python versions: 3.11, 3.12
+- Python version: 3.13
 
 See `.github/workflows/ci.yml` for the complete CI configuration.
 
