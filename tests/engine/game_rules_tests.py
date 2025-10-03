@@ -418,6 +418,22 @@ class TestGameRulesMeldStructureValidation:
         ]
         meld_5 = Meld(kind=MeldKind.RUN, tiles=tiles_5)
         assert GameRules.validate_meld_structure(meld_5) is True
+        
+        # 10-tile run - demonstrating runs can be much larger than 4
+        tiles_10 = [
+            TileUtils.create_numbered_tile_id(i, Color.BLACK, 'a')
+            for i in range(1, 11)
+        ]
+        meld_10 = Meld(kind=MeldKind.RUN, tiles=tiles_10)
+        assert GameRules.validate_meld_structure(meld_10) is True
+        
+        # 13-tile run - maximum possible size
+        tiles_13 = [
+            TileUtils.create_numbered_tile_id(i, Color.ORANGE, 'a')
+            for i in range(1, 14)
+        ]
+        meld_13 = Meld(kind=MeldKind.RUN, tiles=tiles_13)
+        assert GameRules.validate_meld_structure(meld_13) is True
     
     def test_validate_meld_structure_invalid_group(self):
         """Test validation of invalid group melds."""

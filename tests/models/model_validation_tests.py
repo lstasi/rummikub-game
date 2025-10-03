@@ -341,6 +341,29 @@ class TestEdgeCasesAndBoundaries:
         meld.validate()
         assert meld.get_value() == 91  # sum(1 to 13)
     
+    def test_run_various_sizes(self):
+        """Test runs of various sizes from 4 to 12 tiles.
+        
+        This explicitly demonstrates that runs are NOT limited to 4 tiles
+        and can be as large as 13 tiles (limited only by tile numbers 1-13).
+        """
+        # Test runs of sizes 4 through 12
+        for size in range(4, 13):
+            tiles = [
+                TileUtils.create_numbered_tile_id(i, Color.BLUE, 'a')
+                for i in range(1, size + 1)
+            ]
+            
+            meld = Meld(kind=MeldKind.RUN, tiles=tiles)
+            
+            # Should not raise an exception
+            meld.validate()
+            
+            # Verify correct value calculation
+            expected_value = sum(range(1, size + 1))
+            assert meld.get_value() == expected_value, \
+                f"Run of size {size} should have value {expected_value}"
+    
     def test_run_at_boundaries(self):
         """Test runs at number boundaries."""
         # Run starting at 1
