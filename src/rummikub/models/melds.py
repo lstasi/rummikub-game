@@ -71,6 +71,8 @@ class Meld:
             raise InvalidMeldError("Meld cannot be empty")
         
         # Size validation
+        # Groups are limited to 3-4 tiles (one per color)
+        # Runs can be 3-13 tiles (consecutive numbers, limited only by tile range 1-13)
         if self.kind == MeldKind.GROUP and not (3 <= len(self.tiles) <= 4):
             raise InvalidMeldError("Group must have 3-4 tiles", "size")
         elif self.kind == MeldKind.RUN and len(self.tiles) < 3:

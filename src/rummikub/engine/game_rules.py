@@ -252,6 +252,10 @@ class GameRules:
     def validate_meld_structure(meld: Meld) -> bool:
         """Validate basic meld structure (size constraints).
         
+        Groups must have 3-4 tiles (limited by the 4 available colors).
+        Runs must have at least 3 tiles and can be up to 13 tiles
+        (limited only by the tile number range 1-13).
+        
         Args:
             meld: Meld to validate
             
