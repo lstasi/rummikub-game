@@ -53,17 +53,6 @@
 
 .player-card.current-player {
     border-color: #f39c12;
-    background-color: rgba(243, 156, 18, 0.2);
-}
-
-.player-card.me {
-    border-color: #3498db;
-    background-color: rgba(52, 152, 219, 0.2);
-}
-
-/* When it's the current player's turn AND they are "me", prioritize current-player styling */
-.player-card.me.current-player {
-    border-color: #f39c12;
     background-color: rgba(243, 156, 18, 0.3);
     border-width: 3px;
     box-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
