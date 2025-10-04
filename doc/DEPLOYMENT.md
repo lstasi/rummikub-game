@@ -65,10 +65,11 @@ docker pull ghcr.io/lstasi/rummikub-game:1
 
 Docker images are automatically built and pushed by GitHub Actions:
 - **Workflow**: `.github/workflows/docker.yml`
-- **Triggers**: Push to main branch, tag creation (v*)
+- **Triggers**: Push to main or staging branch, tag creation (v*)
 - **Registry**: GitHub Container Registry (ghcr.io)
 - **Tags**: 
   - `latest` - Latest build from main branch
+  - `staging` - Latest build from staging branch
   - `v{version}` - Specific version tags (e.g., v1.0.0)
   - `{major}.{minor}` - Major/minor version tags (e.g., 1.0)
   - `{major}` - Major version tag (e.g., 1)
