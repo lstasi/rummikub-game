@@ -387,10 +387,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hasSelectedTiles = selectedTiles.size > 0;
         const hasSelectedMelds = selectedMelds.size > 0;
         
-        // Check if selected melds contain group melds (for break action)
-        const hasGroupMelds = Array.from(selectedMelds).some(meldId => {
+        // Check if selected melds contain melds that can be broken (groups or runs)
+        const hasBreakableMelds = Array.from(selectedMelds).some(meldId => {
             const meld = localBoardState.melds.find(m => m.id === meldId);
-            return meld && meld.kind === 'group';
+            return meld && (meld.kind === 'group' || meld.kind === 'run');
         });
         
         // Check if we can group melds (need at least 2 melds of any kind)
@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         pushToBoardBtn.disabled = !isMyTurn || !hasSelectedTiles;
         removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds || !canRemoveFromBoard;
-        breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasGroupMelds;
+        breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasBreakableMelds;
         groupMeldBtn.disabled = !isMyTurn || !canGroupMelds;
         drawTileBtn.disabled = !isMyTurn;
         endTurnBtn.disabled = !isMyTurn;
@@ -493,11 +493,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     function breakMeld() {
         if (selectedMelds.size === 0) return;
         
-        // Only break Group Melds (not runs or individual tiles)
+        // Break melds into individual tiles (works for both groups and runs)
         selectedMelds.forEach(meldId => {
             const meld = localBoardState.melds.find(m => m.id === meldId);
-            if (meld && meld.kind === 'group') {
-                // Create individual tile "melds" for each tile in the group
+            if (meld && (meld.kind === 'group' || meld.kind === 'run')) {
+                // Create individual tile "melds" for each tile in the meld
                 meld.tiles.forEach(tileId => {
                     const individualMeld = {
                         id: `meld-${Date.now()}-${Math.random()}`,
@@ -509,11 +509,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        // Remove selected group melds from board
+        // Remove selected melds (groups and runs) from board
         localBoardState.melds = localBoardState.melds.filter(meld => {
             if (selectedMelds.has(meld.id)) {
-                // Only remove group melds
-                return meld.kind !== 'group';
+                // Only remove group and run melds, keep individual tiles
+                return meld.kind !== 'group' && meld.kind !== 'run';
             }
             return true;
         });
