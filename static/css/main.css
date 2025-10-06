@@ -43,16 +43,16 @@ header h1 {
 
 /* Button styles */
 .btn {
-    padding: 12px 24px;
+    padding: 8px 16px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 500;
     text-decoration: none;
     display: inline-block;
     transition: all 0.3s ease;
-    min-width: 120px;
+    min-width: 100px;
 }
 
 .btn:hover {
@@ -145,8 +145,8 @@ header h1 {
 }
 
 .btn-small {
-    padding: 6px 12px;
-    font-size: 14px;
+    padding: 4px 10px;
+    font-size: 12px;
     min-width: auto;
 }
 
