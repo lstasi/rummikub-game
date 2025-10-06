@@ -20,6 +20,12 @@ const Utils = {
         const url = new URL(window.location.origin);
         url.searchParams.set('page', page);
         
+        // Preserve lang parameter if it exists
+        const currentParams = this.getUrlParams();
+        if (currentParams.lang) {
+            url.searchParams.set('lang', currentParams.lang);
+        }
+        
         for (const [key, value] of Object.entries(params)) {
             if (value) {
                 url.searchParams.set(key, value);
@@ -200,6 +206,11 @@ const GameState = {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     GameState.load();
+    
+    // Initialize i18n if available
+    if (window.I18n) {
+        I18n.init();
+    }
     
     // Check if we have URL parameters for direct joining
     const params = Utils.getUrlParams();
