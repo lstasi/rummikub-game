@@ -37,6 +37,21 @@ Pending (see `TODO.md` for the full list):
 - Docker + docker-compose for local runs
 - GitHub Actions for CI/CD
 
+## Features
+
+### Multi-Language Support
+The UI supports three languages:
+- **English (en)** - Default language
+- **Portuguese (pt)** - Brazilian Portuguese
+- **Spanish (es)** - Spanish
+
+To use a specific language, add the `lang` query parameter to the URL:
+- English: `http://localhost:8000/?lang=en` (or just `http://localhost:8000/`)
+- Portuguese: `http://localhost:8000/?lang=pt`
+- Spanish: `http://localhost:8000/?lang=es`
+
+The language parameter is automatically preserved when navigating between pages.
+
 ## Development
 
 ### Running Tests Locally
