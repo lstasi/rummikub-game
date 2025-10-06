@@ -10,16 +10,16 @@
 
 .game-header {
     background-color: rgba(0,0,0,0.3);
-    padding: 15px 20px;
+    padding: 8px 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 15px;
 }
 
 .game-info h1 {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     margin: 0;
     color: white;
 }
@@ -70,8 +70,10 @@
 }
 
 .initial-meld-status {
-    font-size: 0.7rem;
+    font-size: 1rem;
     margin-top: 2px;
+    font-weight: bold;
+    cursor: help;
 }
 
 .initial-meld-met {
@@ -96,10 +98,17 @@
     min-height: 300px;
 }
 
+.board-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
 .board-section h2 {
     color: white;
-    margin-bottom: 15px;
-    font-size: 1.3rem;
+    margin: 0;
+    font-size: 1.1rem;
 }
 
 .board {
@@ -146,8 +155,8 @@
 
 .rack-section h2 {
     color: white;
-    margin-bottom: 15px;
-    font-size: 1.3rem;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
 }
 
 .rack {
@@ -235,27 +244,28 @@
     text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
 }
 
-/* Actions section */
-.actions-section {
-    background-color: rgba(0,0,0,0.3);
-    padding: 20px;
-    border-radius: 8px;
+/* Turn actions (top right of board) */
+.turn-actions {
     display: flex;
-    flex-direction: column;
-    gap: 15px;
+    gap: 8px;
 }
 
-.tile-actions {
+/* Board controls (bottom of board) */
+.board-controls {
     display: flex;
     gap: 10px;
     justify-content: center;
-    flex-wrap: wrap;
+    margin-top: 10px;
 }
 
-.turn-actions {
+/* Transfer section (between board and rack) */
+.transfer-section {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     justify-content: center;
+    padding: 10px 0;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 8px;
 }
 
 /* Mobile responsiveness */
@@ -275,8 +285,9 @@
         font-size: 14px;
     }
     
-    .tile-actions,
-    .turn-actions {
+    .turn-actions,
+    .board-controls,
+    .transfer-section {
         flex-direction: column;
         align-items: center;
     }

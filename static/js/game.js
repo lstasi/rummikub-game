@@ -28,7 +28,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const drawTileBtn = document.getElementById('draw-tile-btn');
     const endTurnBtn = document.getElementById('end-turn-btn');
     const resetBtn = document.getElementById('reset-btn');
-    const leaveGameBtn = document.getElementById('leave-game-btn');
     
     // Sorting buttons
     const sortByNumberBtn = document.getElementById('sort-by-number');
@@ -57,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         drawTileBtn.addEventListener('click', drawTile);
         endTurnBtn.addEventListener('click', endTurn);
         resetBtn.addEventListener('click', resetTurn);
-        leaveGameBtn.addEventListener('click', leaveGame);
         
         sortByNumberBtn.addEventListener('click', () => sortRack('number'));
         sortByColorBtn.addEventListener('click', () => sortRack('color'));
@@ -259,13 +257,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tileCount = player.rack ? player.rack.tiles.length : player.rack_size;
             }
             
-            const initialMeldStatus = player.initial_meld_met ? 'Initial meld met' : 'Needs initial meld (30+ pts)';
+            const initialMeldIcon = player.initial_meld_met ? '✓' : '✗';
             const initialMeldClass = player.initial_meld_met ? 'initial-meld-met' : 'initial-meld-not-met';
+            const initialMeldTitle = player.initial_meld_met ? 'Initial meld met' : 'Needs initial meld (30+ pts)';
             
             playerCard.innerHTML = `
                 <div class="player-name">${player.name}</div>
                 <div class="player-tiles">${tileCount} tiles</div>
-                <div class="initial-meld-status ${initialMeldClass}">${initialMeldStatus}</div>
+                <div class="initial-meld-status ${initialMeldClass}" title="${initialMeldTitle}">${initialMeldIcon}</div>
             `;
             
             playersList.appendChild(playerCard);
@@ -673,13 +672,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedMelds.clear();
         
         updateUI();
-    }
-    
-    function leaveGame() {
-        if (confirm('Are you sure you want to leave the game?')) {
-            GameState.clear();
-            Utils.navigateTo('home');
-        }
     }
     
     function sortRack(method) {
