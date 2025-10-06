@@ -24,31 +24,31 @@
                 <div class="board-header">
                     <h2>Board</h2>
                     <div class="turn-actions">
-                        <button id="draw-tile-btn" class="btn btn-draw">Draw</button>
-                        <button id="end-turn-btn" class="btn btn-success" disabled>Next</button>
-                        <button id="reset-btn" class="btn btn-warning">Reset</button>
+                        <button id="draw-tile-btn" class="btn btn-draw" data-i18n="draw-tile-btn">Draw</button>
+                        <button id="end-turn-btn" class="btn btn-success" disabled data-i18n="end-turn-btn">Next</button>
+                        <button id="reset-btn" class="btn btn-warning" data-i18n="reset-btn">Reset</button>
                     </div>
                 </div>
                 <div id="board" class="board">
                     <div id="no-melds" class="no-melds">No melds on board yet</div>
                 </div>
                 <div class="board-controls">
-                    <button id="break-meld-btn" class="btn btn-warning" disabled>Break</button>
-                    <button id="group-meld-btn" class="btn btn-info" disabled>Group</button>
+                    <button id="break-meld-btn" class="btn btn-warning" disabled data-i18n="break-meld-btn">Break</button>
+                    <button id="group-meld-btn" class="btn btn-info" disabled data-i18n="group-meld-btn">Group</button>
                 </div>
             </section>
             
             <section class="transfer-section">
-                <button id="push-to-board-btn" class="btn btn-primary" disabled>Push</button>
-                <button id="remove-from-board-btn" class="btn btn-secondary" disabled>Remove</button>
+                <button id="push-to-board-btn" class="btn btn-primary" disabled data-i18n="push-to-board-btn">Push</button>
+                <button id="remove-from-board-btn" class="btn btn-secondary" disabled data-i18n="remove-from-board-btn">Remove</button>
             </section>
             
             <section class="rack-section">
                 <h2>Your Tiles</h2>
                 <div id="rack" class="rack"></div>
                 <div class="rack-controls">
-                    <button id="sort-by-number" class="btn btn-small btn-secondary">Number</button>
-                    <button id="sort-by-color" class="btn btn-small btn-secondary">Color</button>
+                    <button id="sort-by-number" class="btn btn-small btn-secondary" data-i18n="sort-by-number">Number</button>
+                    <button id="sort-by-color" class="btn btn-small btn-secondary" data-i18n="sort-by-color">Color</button>
                 </div>
             </section>
         </main>
@@ -65,6 +65,7 @@
         </div>
     </div>
     
+    <script src="/static/js/i18n.js"></script>
     <script src="/static/js/main.js"></script>
     <script src="/static/js/game.js"></script>
 </body>

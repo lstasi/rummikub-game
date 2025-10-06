@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>Join Game</h1>
-            <button id="back-btn" class="btn btn-back">← Back to Home</button>
+            <button id="back-btn" class="btn btn-back" data-i18n="back-btn">← Back to Home</button>
         </header>
         
         <main>
@@ -28,8 +28,8 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Join Game</button>
-                    <button type="button" id="cancel-btn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="join-submit-btn">Join Game</button>
+                    <button type="button" id="cancel-btn" class="btn btn-secondary" data-i18n="cancel-btn">Cancel</button>
                 </div>
             </form>
             
@@ -41,6 +41,7 @@
         </main>
     </div>
     
+    <script src="/static/js/i18n.js"></script>
     <script src="/static/js/main.js"></script>
     <script src="/static/js/join.js"></script>
 </body>
