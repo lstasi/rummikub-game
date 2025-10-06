@@ -17,39 +17,38 @@
             <div class="players-info">
                 <div id="players-list" class="players-list"></div>
             </div>
-            <div class="game-controls">
-                <button id="leave-game-btn" class="btn btn-danger">Leave Game</button>
-            </div>
         </header>
         
         <main class="game-main">
             <section class="board-section">
-                <h2>Board</h2>
+                <div class="board-header">
+                    <h2>Board</h2>
+                    <div class="turn-actions">
+                        <button id="draw-tile-btn" class="btn btn-icon" title="Draw Tile">↓</button>
+                        <button id="end-turn-btn" class="btn btn-icon" disabled title="Next Turn">→</button>
+                        <button id="reset-btn" class="btn btn-icon" title="Reset">↕</button>
+                    </div>
+                </div>
                 <div id="board" class="board">
                     <div id="no-melds" class="no-melds">No melds on board yet</div>
                 </div>
+                <div class="board-controls">
+                    <button id="break-meld-btn" class="btn btn-warning" disabled>Break</button>
+                    <button id="group-meld-btn" class="btn btn-info" disabled>Group</button>
+                </div>
+            </section>
+            
+            <section class="transfer-section">
+                <button id="push-to-board-btn" class="btn btn-icon" disabled title="Push to Board">↑</button>
+                <button id="remove-from-board-btn" class="btn btn-icon" disabled title="Remove from Board">↓</button>
             </section>
             
             <section class="rack-section">
                 <h2>Your Tiles</h2>
                 <div id="rack" class="rack"></div>
                 <div class="rack-controls">
-                    <button id="sort-by-number" class="btn btn-small">Sort by Number</button>
-                    <button id="sort-by-color" class="btn btn-small">Sort by Color</button>
-                </div>
-            </section>
-            
-            <section class="actions-section">
-                <div class="tile-actions">
-                    <button id="push-to-board-btn" class="btn btn-primary" disabled>Push to Board</button>
-                    <button id="remove-from-board-btn" class="btn btn-secondary" disabled>Remove from Board</button>
-                    <button id="break-meld-btn" class="btn btn-warning" disabled>Break Meld</button>
-                    <button id="group-meld-btn" class="btn btn-info" disabled>Group Meld</button>
-                </div>
-                <div class="turn-actions">
-                    <button id="draw-tile-btn" class="btn btn-draw">Draw Tile</button>
-                    <button id="end-turn-btn" class="btn btn-success" disabled>Next Turn</button>
-                    <button id="reset-btn" class="btn btn-warning">Reset</button>
+                    <button id="sort-by-number" class="btn btn-small">Number</button>
+                    <button id="sort-by-color" class="btn btn-small">Color</button>
                 </div>
             </section>
         </main>
