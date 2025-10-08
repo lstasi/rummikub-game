@@ -78,6 +78,7 @@ See `.github/workflows/ci.yml` for the complete CI configuration.
 Docker images are automatically built and published to GitHub Container Registry:
 - Push to main or staging branch → `latest` tag (main) or `staging` tag
 - Version tags (v*) → versioned tags (e.g., v1.0.0, 1.0, 1)
+- **Multi-architecture support**: Images are built for both `linux/amd64` (x86_64) and `linux/arm64` (ARM 64-bit) platforms
 
 See `.github/workflows/docker.yml` for the Docker build configuration and `doc/DEPLOYMENT.md` for usage instructions.
 

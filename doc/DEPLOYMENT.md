@@ -39,7 +39,7 @@ Pre-built Docker images are automatically published to GitHub Container Registry
 ### Pull and Run Pre-built Image
 
 ```bash
-# Pull the latest image
+# Pull the latest image (automatically selects correct architecture)
 docker pull ghcr.io/lstasi/rummikub-game:latest
 
 # Run with Redis
@@ -49,6 +49,8 @@ docker run -d --name rummikub-api -p 8090:8090 \
   --link rummikub-redis:redis \
   ghcr.io/lstasi/rummikub-game:latest
 ```
+
+**Note**: Images are built for both `linux/amd64` and `linux/arm64` architectures. Docker will automatically pull the correct image for your platform.
 
 ### Using Tagged Versions
 
@@ -67,6 +69,9 @@ Docker images are automatically built and pushed by GitHub Actions:
 - **Workflow**: `.github/workflows/docker.yml`
 - **Triggers**: Push to main or staging branch, tag creation (v*)
 - **Registry**: GitHub Container Registry (ghcr.io)
+- **Platforms**: Multi-architecture support
+  - `linux/amd64` - x86_64 architecture (standard Intel/AMD)
+  - `linux/arm64` - ARM 64-bit architecture (Apple Silicon, AWS Graviton, Raspberry Pi 4+)
 - **Tags**: 
   - `latest` - Latest build from main branch
   - `staging` - Latest build from staging branch
