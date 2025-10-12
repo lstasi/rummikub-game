@@ -101,7 +101,7 @@ class CreateGameRequest(BaseModel):
 
 class JoinGameRequest(BaseModel):
     """Request body for joining a game."""
-    player_name: str = Field(min_length=1, max_length=50, description="Player name")
+    player_name: Optional[str] = Field(None, min_length=1, max_length=50, description="Player name (optional if provided via Basic Auth)")
 
 
 class ErrorDetail(BaseModel):

@@ -98,7 +98,7 @@ const translations = {
 const I18n = {
     currentLang: 'en',
     
-    // Initialize i18n - detect language from URL parameter
+    // Initialize i18n - detect language from URL parameter or browser locale
     init() {
         const params = new URLSearchParams(window.location.search);
         const lang = params.get('lang');
@@ -107,10 +107,37 @@ const I18n = {
         if (lang && translations[lang]) {
             this.currentLang = lang;
         } else {
-            this.currentLang = 'en';
+            // Fallback to browser locale
+            this.currentLang = this.detectBrowserLanguage();
         }
         
         this.applyTranslations();
+    },
+    
+    // Detect browser language from navigator
+    detectBrowserLanguage() {
+        const supportedLanguages = ['en', 'pt', 'es'];
+        
+        // Try navigator.language first (e.g., "en-US")
+        if (navigator.language) {
+            const primaryLang = navigator.language.split('-')[0].toLowerCase();
+            if (supportedLanguages.includes(primaryLang)) {
+                return primaryLang;
+            }
+        }
+        
+        // Try navigator.languages array
+        if (navigator.languages && navigator.languages.length > 0) {
+            for (const lang of navigator.languages) {
+                const primaryLang = lang.split('-')[0].toLowerCase();
+                if (supportedLanguages.includes(primaryLang)) {
+                    return primaryLang;
+                }
+            }
+        }
+        
+        // Default to English
+        return 'en';
     },
     
     // Get translation for a key

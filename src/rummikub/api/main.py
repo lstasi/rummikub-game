@@ -1,9 +1,11 @@
 """Main FastAPI application with API endpoints."""
 
 
+import base64
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 
 from ..models import PlayTilesAction, DrawAction
 from ..models.exceptions import (
@@ -148,13 +150,97 @@ async def create_game(
     return _convert_game_state_to_response(game_state)
 
 
+def _extract_basic_auth_username(authorization: Optional[str]) -> Optional[str]:
+    """Extract username from Basic Auth header.
+    
+    Args:
+        authorization: Authorization header value
+        
+    Returns:
+        Username if Basic Auth header is valid, None otherwise
+    """
+    if not authorization:
+        return None
+    
+    # Check if it's Basic auth
+    if not authorization.startswith("Basic "):
+        return None
+    
+    try:
+        # Decode base64 credentials
+        encoded_credentials = authorization.split(" ", 1)[1]
+        decoded_credentials = base64.b64decode(encoded_credentials).decode("utf-8")
+        # Extract username (format is username:password)
+        username = decoded_credentials.split(":", 1)[0]
+        return username if username else None
+    except Exception:
+        # Invalid Basic Auth header
+        return None
+
+
+def _extract_preferred_language(accept_language: Optional[str]) -> str:
+    """Extract preferred language from Accept-Language header.
+    
+    Args:
+        accept_language: Accept-Language header value
+        
+    Returns:
+        Preferred language code (en, pt, es) or 'en' as default
+    """
+    if not accept_language:
+        return "en"
+    
+    # Supported languages
+    supported_languages = {"en", "pt", "es"}
+    
+    # Parse Accept-Language header (format: "en-US,en;q=0.9,pt;q=0.8")
+    languages = []
+    for lang_part in accept_language.split(","):
+        lang_part = lang_part.strip()
+        # Remove quality factor if present
+        lang_code = lang_part.split(";")[0].strip()
+        # Extract primary language code (e.g., "en" from "en-US")
+        primary_lang = lang_code.split("-")[0].lower()
+        languages.append(primary_lang)
+    
+    # Return first supported language
+    for lang in languages:
+        if lang in supported_languages:
+            return lang
+    
+    return "en"
+
+
 @app.post("/games/{game_id}/players", response_model=GameStateResponse)
 async def join_game(
     game_id: str,
     request: JoinGameRequest,
-    game_service: GameServiceDep
+    game_service: GameServiceDep,
+    authorization: Optional[str] = Header(None),
+    accept_language: Optional[str] = Header(None, alias="Accept-Language")
 ) -> GameStateResponse:
-    """Join a game by game ID."""
+    """Join a game by game ID.
+    
+    Supports:
+    - Basic Auth: If Authorization header contains Basic Auth, username is extracted
+    - Language detection: Accept-Language header is parsed for language preference
+    """
+    # Extract username from Basic Auth if present
+    basic_auth_username = _extract_basic_auth_username(authorization)
+    
+    # Extract preferred language
+    preferred_language = _extract_preferred_language(accept_language)
+    
+    # Use player_name from request, or fallback to Basic Auth username
+    player_name = request.player_name or basic_auth_username
+    
+    if not player_name:
+        # If neither player_name nor Basic Auth username is provided, raise error
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Player name is required (provide in request body or via Basic Auth)")
+    
+    logger.info(f"Player joining game {game_id}: name={player_name}, auth_username={basic_auth_username}, lang={preferred_language}")
+    
     # Get original state before joining for rack sizes
     try:
         original_game_state = game_service._load_game_state(game_id)
@@ -162,12 +248,12 @@ async def join_game(
         original_game_state = None
     
     # Join the game (returns curated state for the joining player)
-    game_state = game_service.join_game(game_id, request.player_name)
+    game_state = game_service.join_game(game_id, player_name)
     
     # Find the player who just joined to return their curated view
     requesting_player = None
     for player in game_state.players:
-        if player.name == request.player_name:
+        if player.name == player_name:
             requesting_player = player.id
             break
     
