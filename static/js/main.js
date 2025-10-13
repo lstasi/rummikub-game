@@ -88,9 +88,17 @@ const Utils = {
 const API = {
     async request(endpoint, options = {}) {
         const url = `${API_BASE}${endpoint}`;
+        
+        // Add Authorization header
+        const authHeader = Auth.getAuthHeader();
+        if (!authHeader) {
+            throw new Error('Authentication required. Please refresh the page and enter your username.');
+        }
+        
         const config = {
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': authHeader,
             },
             ...options
         };
@@ -110,6 +118,12 @@ const API = {
             }
             
             if (!response.ok) {
+                // Handle 401 - clear auth and prompt for re-login
+                if (response.status === 401) {
+                    Auth.clear();
+                    throw new Error('Authentication failed. Please refresh the page and enter your username.');
+                }
+                
                 const error = new Error(data.error?.message || `HTTP ${response.status}`);
                 error.response = {
                     status: response.status,
@@ -140,11 +154,15 @@ const API = {
         });
     },
     
-    async joinGame(gameId, playerName) {
+    async joinGame(gameId) {
         return this.request(`/games/${gameId}/players`, {
             method: 'POST',
-            body: { player_name: playerName }
+            body: {}
         });
+    },
+    
+    async getAvailableGames() {
+        return this.request('/games/available');
     },
     
     async getGameState(gameId, playerId) {
@@ -163,6 +181,55 @@ const API = {
             method: 'POST',
             body: {}
         });
+    }
+};
+
+// Authentication management
+const Auth = {
+    username: null,
+    
+    // Get username (prompt if not set)
+    getUsername() {
+        if (!this.username) {
+            this.username = localStorage.getItem('rummikub_username');
+        }
+        
+        if (!this.username) {
+            this.username = prompt('Please enter your username:');
+            if (this.username) {
+                this.username = this.username.trim();
+                localStorage.setItem('rummikub_username', this.username);
+            }
+        }
+        
+        return this.username;
+    },
+    
+    // Set username
+    setUsername(username) {
+        this.username = username;
+        if (username) {
+            localStorage.setItem('rummikub_username', username);
+        } else {
+            localStorage.removeItem('rummikub_username');
+        }
+    },
+    
+    // Clear username
+    clear() {
+        this.username = null;
+        localStorage.removeItem('rummikub_username');
+    },
+    
+    // Get Basic Auth header value
+    getAuthHeader() {
+        const username = this.getUsername();
+        if (!username) {
+            return null;
+        }
+        // Use empty password as validation happens upstream
+        const credentials = `${username}:`;
+        return `Basic ${btoa(credentials)}`;
     }
 };
 
@@ -224,3 +291,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.Utils = Utils;
 window.API = API;
 window.GameState = GameState;
+window.Auth = Auth;

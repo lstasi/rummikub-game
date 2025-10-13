@@ -20,48 +20,37 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         
         const formData = new FormData(form);
-        const playerName = formData.get('player-name').trim();
         const numPlayers = parseInt(formData.get('num-players'));
-        
-        if (!playerName) {
-            Utils.showError(error, 'Please enter your name');
-            return;
-        }
-        
-        if (playerName.length > 50) {
-            Utils.showError(error, 'Name must be 50 characters or less');
-            return;
-        }
         
         if (numPlayers < 2 || numPlayers > 4) {
             Utils.showError(error, 'Number of players must be between 2 and 4');
             return;
         }
         
-        await createGame(playerName, numPlayers);
+        await createGame(numPlayers);
     });
     
-    async function createGame(playerName, numPlayers) {
+    async function createGame(numPlayers) {
         try {
             Utils.hideError(error);
             Utils.showLoading(loading, true);
             form.style.display = 'none';
             
-            // Create the game
+            // Create and join the game (happens automatically now)
             const gameResponse = await API.createGame(numPlayers);
             const gameId = gameResponse.game_id;
             
-            // Join the game as the first player
-            const joinResponse = await API.joinGame(gameId, playerName);
+            // Get authenticated username
+            const username = Auth.getUsername();
             
             // Save game state
             GameState.gameId = gameId;
-            GameState.playerId = joinResponse.players.find(p => p.name === playerName)?.id;
-            GameState.playerName = playerName;
+            GameState.playerId = gameResponse.players.find(p => p.name === username)?.id;
+            GameState.playerName = username;
             GameState.save();
             
             // Navigate to game page
-            Utils.navigateTo('game', { game_id: gameId, name: playerName });
+            Utils.navigateTo('game', { game_id: gameId, name: username });
             
         } catch (error) {
             console.error('Failed to create game:', error);
