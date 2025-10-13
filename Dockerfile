@@ -1,5 +1,5 @@
 # Dockerfile for Rummikub Game API
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 # Set working directory
 WORKDIR /app
