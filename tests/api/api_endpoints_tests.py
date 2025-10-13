@@ -40,6 +40,12 @@ class TestAPIEndpointsIntegration:
         
         self.client = TestClient(app)
         
+        # Set up auth headers for testing
+        import base64
+        self.auth_alice = {"Authorization": f"Basic {base64.b64encode(b'alice:').decode()}"}
+        self.auth_bob = {"Authorization": f"Basic {base64.b64encode(b'bob:').decode()}"}
+        self.auth_charlie = {"Authorization": f"Basic {base64.b64encode(b'charlie:').decode()}"}
+        
         # Clear test database
         self.cleanup_redis()
     
@@ -67,7 +73,7 @@ class TestAPIEndpointsIntegration:
     
     def test_create_game_basic(self):
         """Test basic game creation endpoint."""
-        response = self.client.post("/games", json={"num_players": 2})
+        response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
@@ -76,7 +82,8 @@ class TestAPIEndpointsIntegration:
         assert "game_id" in data
         assert data["status"] == "waiting_for_players"
         assert data["num_players"] == 2
-        assert len(data["players"]) == 0  # No joined players yet
+        assert len(data["players"]) == 1  # Creator automatically joined
+        assert data["players"][0]["name"] == "alice"
         assert data["current_player_index"] == 0
         assert data["pool_size"] > 0
         assert "board" in data
@@ -88,29 +95,36 @@ class TestAPIEndpointsIntegration:
     def test_create_game_invalid_players(self):
         """Test game creation with invalid player counts."""
         # Too few players
-        response = self.client.post("/games", json={"num_players": 1})
+        response = self.client.post("/games", json={"num_players": 1}, headers=self.auth_alice)
         assert response.status_code == 422
         
         # Too many players
-        response = self.client.post("/games", json={"num_players": 5})
+        response = self.client.post("/games", json={"num_players": 5}, headers=self.auth_alice)
         assert response.status_code == 422
+    
+    def test_create_game_without_auth(self):
+        """Test game creation without authentication returns 401."""
+        response = self.client.post("/games", json={"num_players": 2})
+        assert response.status_code == 401
+        data = response.json()
+        assert "Authentication required" in data["detail"]
     
     def test_get_games_empty(self):
         """Test getting games list when no games exist."""
-        response = self.client.get("/games")
+        response = self.client.get("/games", headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
         assert data == {"games": []}
     
     def test_get_games_with_games(self):
-        """Test getting games list with existing games."""
-        # Create a game first
-        create_response = self.client.post("/games", json={"num_players": 2})
+        """Test getting games list with existing games - only shows user's games."""
+        # Create a game as alice
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         assert create_response.status_code == 200
         
-        # Get games list
-        response = self.client.get("/games")
+        # Get games list as alice - should see her game
+        response = self.client.get("/games", headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
@@ -121,82 +135,73 @@ class TestAPIEndpointsIntegration:
         assert "game_id" in game
         assert game["status"] == "waiting_for_players"
         assert game["num_players"] == 2
+        
+        # Get games list as bob - should see no games (not in any)
+        response = self.client.get("/games", headers=self.auth_bob)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["games"]) == 0
     
-    def test_join_game_first_player(self):
-        """Test joining game as first player."""
-        # Create game
-        create_response = self.client.post("/games", json={"num_players": 2})
+    def test_join_game_second_player(self):
+        """Test joining game as second player."""
+        # Create game as alice (auto-joins)
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
         
-        # Join as first player
+        # Join as second player (bob)
         response = self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=self.auth_bob
         )
         
         assert response.status_code == 200
         data = response.json()
         
         assert data["game_id"] == game_id
-        assert data["status"] == "waiting_for_players"
-        assert len(data["players"]) == 1
-        
-        player = data["players"][0]
-        assert player["name"] == "Alice"
-        assert "rack" in player
-        assert player["rack"] is not None
-        assert len(player["rack"]["tiles"]) == 14  # Initial tiles dealt
-    
-    def test_join_game_second_player_starts_game(self):
-        """Test joining as second player automatically starts game."""
-        # Create and join first player
-        create_response = self.client.post("/games", json={"num_players": 2})
-        game_id = create_response.json()["game_id"]
-        
-        self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
-        )
-        
-        # Join as second player
-        response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Bob"}
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        
         assert data["status"] == "in_progress"  # Game automatically started
         assert len(data["players"]) == 2
         
         # Bob should see his tiles (returned view is for Bob)
-        bob = next(p for p in data["players"] if p["name"] == "Bob")
+        bob = next(p for p in data["players"] if p["name"] == "bob")
         assert bob["rack"] is not None
         assert len(bob["rack"]["tiles"]) == 14
         
         # Alice's rack should be hidden from Bob's view  
-        alice = next(p for p in data["players"] if p["name"] == "Alice")
+        alice = next(p for p in data["players"] if p["name"] == "alice")
         assert alice["rack"] is None
         assert alice["rack_size"] == 14
     
-    def test_join_game_invalid_name(self):
-        """Test joining game with invalid player name."""
-        create_response = self.client.post("/games", json={"num_players": 2})
+    def test_get_available_games(self):
+        """Test getting available games to join."""
+        # Create a game as alice
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
         
-        # Empty name
-        response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": ""}
-        )
-        assert response.status_code == 422
+        # Bob should see this game as available
+        response = self.client.get("/games/available", headers=self.auth_bob)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["games"]) == 1
+        assert data["games"][0]["game_id"] == game_id
+        
+        # Alice should NOT see this game as available (already in it)
+        response = self.client.get("/games/available", headers=self.auth_alice)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["games"]) == 0
+    
+    def test_join_game_invalid_name(self):
+        """Test joining game with invalid player name - now handled by auth."""
+        # No longer applicable - username comes from auth header, not request body
+        pass
     
     def test_join_nonexistent_game(self):
         """Test joining non-existent game."""
         response = self.client.post(
             "/games/nonexistent-id/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 404
@@ -205,40 +210,37 @@ class TestAPIEndpointsIntegration:
     
     def test_get_game_state_player_view(self):
         """Test getting game state from player's perspective."""
-        # Create game and join players
-        create_response = self.client.post("/games", json={"num_players": 2})
+        # Create game as alice (auto-joins)
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
+        alice_id = create_response.json()["players"][0]["id"]
         
-        alice_response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
-        )
-        alice_id = alice_response.json()["players"][0]["id"]
-        
+        # Bob joins
         self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Bob"}
+            json={},
+            headers=self.auth_bob
         )
         
-        # Get Alice's view
-        response = self.client.get(f"/games/{game_id}/players/{alice_id}")
+        # Get Alice's view (must use alice's auth)
+        response = self.client.get(f"/games/{game_id}/players/{alice_id}", headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
         
         # Alice should see her tiles
-        alice = next(p for p in data["players"] if p["name"] == "Alice")
+        alice = next(p for p in data["players"] if p["name"] == "alice")
         assert alice["rack"] is not None
         assert len(alice["rack"]["tiles"]) == 14
         
         # Bob's tiles should be hidden from Alice
-        bob = next(p for p in data["players"] if p["name"] == "Bob")
+        bob = next(p for p in data["players"] if p["name"] == "bob")
         assert bob["rack"] is None
         assert bob["rack_size"] == 14
     
     def test_get_game_state_nonexistent_game(self):
         """Test getting game state for non-existent game."""
-        response = self.client.get("/games/nonexistent/players/player-id")
+        response = self.client.get("/games/nonexistent/players/player-id", headers=self.auth_alice)
         
         assert response.status_code == 404
         data = response.json()
@@ -246,14 +248,12 @@ class TestAPIEndpointsIntegration:
     
     def test_get_game_state_player_not_in_game(self):
         """Test getting game state for player not in game."""
-        # Create game with players
-        create_response = self.client.post("/games", json={"num_players": 2})
+        # Create game with alice
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
         
-        self.client.post(f"/games/{game_id}/players", json={"player_name": "Alice"})
-        
         # Try to get state for non-existent player
-        response = self.client.get(f"/games/{game_id}/players/fake-player-id")
+        response = self.client.get(f"/games/{game_id}/players/fake-player-id", headers=self.auth_alice)
         
         assert response.status_code == 403
         data = response.json()
@@ -261,30 +261,26 @@ class TestAPIEndpointsIntegration:
     
     def test_draw_tile_action(self):
         """Test draw tile action endpoint."""
-        # Create and start game
-        create_response = self.client.post("/games", json={"num_players": 2})
+        # Create game as alice and bob joins
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
+        alice_id = create_response.json()["players"][0]["id"]
         
-        alice_response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
-        )
-        alice_id = alice_response.json()["players"][0]["id"]
-        
-        # Start game by adding second player
-        self.client.post(f"/games/{game_id}/players", json={"player_name": "Bob"})
+        # Bob joins to start game
+        self.client.post(f"/games/{game_id}/players", json={}, headers=self.auth_bob)
         
         # Draw tile (Alice's turn)
         response = self.client.post(
             f"/games/{game_id}/players/{alice_id}/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 200
         data = response.json()
         
         # Alice should now have 15 tiles (14 + 1 drawn)
-        alice = next(p for p in data["players"] if p["name"] == "Alice")
+        alice = next(p for p in data["players"] if p["name"] == "alice")
         assert len(alice["rack"]["tiles"]) == 15
         
         # Should be Bob's turn now
@@ -292,21 +288,16 @@ class TestAPIEndpointsIntegration:
     
     def test_play_tiles_valid_meld(self):
         """Test play tiles action with valid meld."""
-        # Create and start game  
-        create_response = self.client.post("/games", json={"num_players": 2})
+        # Create game as alice and bob joins
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
+        alice_id = create_response.json()["players"][0]["id"]
         
-        alice_response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
-        )
-        alice_id = alice_response.json()["players"][0]["id"]
-        
-        # Start game
-        self.client.post(f"/games/{game_id}/players", json={"player_name": "Bob"})
+        # Bob joins to start game
+        self.client.post(f"/games/{game_id}/players", json={}, headers=self.auth_bob)
         
         # Get Alice's tiles to construct a valid meld
-        state_response = self.client.get(f"/games/{game_id}/players/{alice_id}")
+        state_response = self.client.get(f"/games/{game_id}/players/{alice_id}", headers=self.auth_alice)
         alice_tiles = state_response.json()["players"][0]["rack"]["tiles"]
         
         # Try to play the first 3 tiles as a group (may not be valid, but tests the endpoint)
@@ -322,7 +313,8 @@ class TestAPIEndpointsIntegration:
         
         response = self.client.post(
             f"/games/{game_id}/players/{alice_id}/actions/play",
-            json=play_request
+            json=play_request,
+            headers=self.auth_alice
         )
         
         # This might fail due to invalid meld, but should return proper error format
@@ -335,19 +327,15 @@ class TestAPIEndpointsIntegration:
     
     def test_play_tiles_invalid_format(self):
         """Test play tiles with invalid request format."""
-        create_response = self.client.post("/games", json={"num_players": 2})
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=self.auth_alice)
         game_id = create_response.json()["game_id"]
-        
-        alice_response = self.client.post(
-            f"/games/{game_id}/players",
-            json={"player_name": "Alice"}
-        )
-        alice_id = alice_response.json()["players"][0]["id"]
+        alice_id = create_response.json()["players"][0]["id"]
         
         # Invalid meld format
         response = self.client.post(
             f"/games/{game_id}/players/{alice_id}/actions/play",
-            json={"melds": [{"invalid": "format"}]}
+            json={"melds": [{"invalid": "format"}]},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 422  # Validation error
@@ -367,6 +355,12 @@ class TestAPIEndpointsMocked:
         app.dependency_overrides[get_game_service] = override_get_game_service
         
         self.client = TestClient(app)
+        
+        # Set up auth headers for testing
+        import base64
+        self.auth_alice = {"Authorization": f"Basic {base64.b64encode(b'alice:').decode()}"}
+        self.auth_bob = {"Authorization": f"Basic {base64.b64encode(b'bob:').decode()}"}
+        self.auth_charlie = {"Authorization": f"Basic {base64.b64encode(b'charlie:').decode()}"}
     
     def teardown_method(self):
         """Clean up after each test."""
@@ -378,14 +372,14 @@ class TestAPIEndpointsMocked:
         
         player1 = Player(
             id="player-1",
-            name="Alice",
+            name="alice",
             initial_meld_met=False,
             rack=Rack(tile_ids=["1ra", "2ra", "3ra", "4ra", "5ra", "6ra", "7ra", "8ra", "9ra", "10ra", "11ra", "12ra", "13ra", "1kb"])
         )
         
         player2 = Player(
             id="player-2",
-            name="Bob", 
+            name="bob", 
             initial_meld_met=False,
             rack=Rack(tile_ids=["1rb", "2rb", "3rb", "4rb", "5rb", "6rb", "7rb", "8rb", "9rb", "10rb", "11rb", "12rb", "13rb", "2kb"])
         )
@@ -405,8 +399,9 @@ class TestAPIEndpointsMocked:
         """Test create game endpoint with mocked service."""
         sample_game = self.create_sample_game_state(status=GameStatus.WAITING_FOR_PLAYERS)
         self.mock_service.create_game.return_value = sample_game
+        self.mock_service.join_game.return_value = sample_game
         
-        response = self.client.post("/games", json={"num_players": 3})
+        response = self.client.post("/games", json={"num_players": 3}, headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
@@ -414,6 +409,7 @@ class TestAPIEndpointsMocked:
         assert data["status"] == "waiting_for_players"
         
         self.mock_service.create_game.assert_called_once_with(3)
+        self.mock_service.join_game.assert_called_once()
     
     def test_join_game_mocked(self):
         """Test join game endpoint with mocked service."""
@@ -423,27 +419,30 @@ class TestAPIEndpointsMocked:
         
         response = self.client.post(
             "/games/12345678-1234-5678-1234-567812345678/players",
-            json={"player_name": "Charlie"}
+            json={},
+            headers=self.auth_charlie
         )
         
         assert response.status_code == 200
         data = response.json()
         assert data["game_id"] == "12345678-1234-5678-1234-567812345678"
         
-        self.mock_service.join_game.assert_called_once_with("12345678-1234-5678-1234-567812345678", "Charlie")
+        self.mock_service.join_game.assert_called_once_with("12345678-1234-5678-1234-567812345678", "charlie")
     
     def test_get_games_mocked(self):
         """Test get games endpoint with mocked service."""
+        # Create games where alice is a player
         sample_games = [
             self.create_sample_game_state("12345678-1234-5678-1234-567812345671"),
             self.create_sample_game_state("12345678-1234-5678-1234-567812345672")
         ]
         self.mock_service.get_games.return_value = sample_games
         
-        response = self.client.get("/games")
+        response = self.client.get("/games", headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
+        # Should return 2 games since alice is in both sample games
         assert len(data["games"]) == 2
         
         self.mock_service.get_games.assert_called_once()
@@ -455,7 +454,8 @@ class TestAPIEndpointsMocked:
         
         response = self.client.post(
             "/games/12345678-1234-5678-1234-567812345678/players/player-1/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 200
@@ -521,6 +521,10 @@ class TestAPIErrorHandling:
         app.dependency_overrides[get_game_service] = override_get_game_service
         
         self.client = TestClient(app)
+        
+        # Set up auth headers for testing
+        import base64
+        self.auth_alice = {"Authorization": f"Basic {base64.b64encode(b'alice:').decode()}"}
     
     def teardown_method(self):
         """Clean up after each test."""
@@ -532,7 +536,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/nonexistent/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 404
@@ -546,7 +551,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/play",
-            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb"]}]}
+            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb"]}]},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 422
@@ -560,7 +566,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/play",
-            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb", "1ro"]}]}
+            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb", "1ro"]}]},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 422
@@ -573,7 +580,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-2/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 403
@@ -586,7 +594,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 400

@@ -28,50 +28,79 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     async function loadGames() {
         try {
-            const response = await API.getGames();
-            displayGames(response.games || []);
+            // Load both user's games and available games to join
+            const [userGamesResponse, availableGamesResponse] = await Promise.all([
+                API.getGames(),
+                API.getAvailableGames()
+            ]);
+            displayGames(userGamesResponse.games || [], availableGamesResponse.games || []);
         } catch (error) {
             console.error('Failed to load games:', error);
             // Don't show error on home page, just show no games
-            displayGames([]);
+            displayGames([], []);
         }
     }
     
-    function displayGames(games) {
+    function displayGames(userGames, availableGames) {
         gamesList.innerHTML = '';
         
-        if (games.length === 0) {
+        if (userGames.length === 0 && availableGames.length === 0) {
             noGames.style.display = 'block';
             return;
         }
         
         noGames.style.display = 'none';
         
-        games.forEach(game => {
-            const gameCard = createGameCard(game);
-            gamesList.appendChild(gameCard);
-        });
+        // Display user's games
+        if (userGames.length > 0) {
+            const userGamesHeader = document.createElement('h3');
+            userGamesHeader.textContent = 'My Games';
+            userGamesHeader.style.marginTop = '0';
+            gamesList.appendChild(userGamesHeader);
+            
+            userGames.forEach(game => {
+                const gameCard = createGameCard(game, false);
+                gamesList.appendChild(gameCard);
+            });
+        }
+        
+        // Display available games to join
+        if (availableGames.length > 0) {
+            const availableGamesHeader = document.createElement('h3');
+            availableGamesHeader.textContent = 'Available Games to Join';
+            availableGamesHeader.style.marginTop = '20px';
+            gamesList.appendChild(availableGamesHeader);
+            
+            availableGames.forEach(game => {
+                const gameCard = createGameCard(game, true);
+                gamesList.appendChild(gameCard);
+            });
+        }
     }
     
-    function createGameCard(game) {
+    function createGameCard(game, showJoinButton) {
         const card = document.createElement('div');
         card.className = 'game-card';
         
         const statusClass = game.status === 'waiting_for_players' ? 'status-waiting' : 
                           game.status === 'in_progress' ? 'status-in-progress' : 'status-completed';
         
-        const canJoin = game.status === 'waiting_for_players';
-        const joinButton = canJoin ? 
-            `<button class="btn btn-primary join-btn" data-game-id="${game.game_id}">Join Game</button>` :
-            `<button class="btn btn-secondary" disabled>Game ${game.status.replace('_', ' ')}</button>`;
-        
-        // Create player links
+        // Create player names (no links, just display)
         let playersSection = '';
         if (game.players && game.players.length > 0) {
-            const playerLinks = game.players.map(player => 
-                `<a href="#" class="player-link" data-game-id="${game.game_id}" data-player-name="${player.name}">${player.name}</a>`
-            ).join(', ');
-            playersSection = `<p>Players: ${playerLinks}</p>`;
+            const playerNames = game.players.map(player => player.name).join(', ');
+            playersSection = `<p>Players: ${playerNames}</p>`;
+        }
+        
+        // Show join button for available games, otherwise show status or "View Game" for user's games
+        let actionButton = '';
+        if (showJoinButton) {
+            actionButton = `<button class="btn btn-primary join-btn" data-game-id="${game.game_id}">Join Game</button>`;
+        } else if (game.status === 'in_progress' || game.status === 'waiting_for_players') {
+            // For user's games, show "View Game" button
+            actionButton = `<button class="btn btn-primary view-game-btn" data-game-id="${game.game_id}">View Game</button>`;
+        } else {
+            actionButton = `<button class="btn btn-secondary" disabled>Game ${game.status.replace('_', ' ')}</button>`;
         }
         
         card.innerHTML = `
@@ -81,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${playersSection}
             <p>Created: ${Utils.formatTime(game.created_at)}</p>
             <div style="margin-top: 15px;">
-                ${joinButton}
+                ${actionButton}
             </div>
         `;
         
@@ -94,16 +123,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
         
-        // Add player link functionality
-        const playerLinks = card.querySelectorAll('.player-link');
-        playerLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const gameId = link.dataset.gameId;
-                const playerName = link.dataset.playerName;
-                Utils.navigateTo('join', { game_id: gameId, name: playerName });
+        // Add view game functionality
+        const viewGameBtn = card.querySelector('.view-game-btn');
+        if (viewGameBtn) {
+            viewGameBtn.addEventListener('click', () => {
+                const gameId = viewGameBtn.dataset.gameId;
+                // Navigate to game page with saved player info
+                Utils.navigateTo('game', { game_id: gameId });
             });
-        });
+        }
         
         return card;
     }

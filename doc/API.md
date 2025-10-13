@@ -12,22 +12,51 @@ The API provides a stateless REST interface over the GameService layer, with aut
 - **Validation**: Automatic request/response validation via Pydantic models
 - **Documentation**: Auto-generated OpenAPI spec at `/docs`
 - **Error Handling**: Structured error responses with proper HTTP status codes
-- **Authentication**: None required for v1 (future versions may add API keys/OAuth)
+- **Authentication**: HTTP Basic Auth (username only, password validation delegated to upstream)
 
 ## Base Configuration
 
 ```
 Base URL: http://localhost:8090/api/v1
 Content-Type: application/json
+Authorization: Basic <base64(username:password)>
 ```
+
+## Authentication
+
+All API endpoints (except `/health`) require HTTP Basic Authentication.
+
+### Authentication Mechanism
+- **Scheme**: HTTP Basic Auth
+- **Header**: `Authorization: Basic <base64(username:password)>`
+- **Username**: Required - identifies the user making the request
+- **Password**: Optional - validation delegated to upstream layer (load balancer/API gateway)
+- **Error Response**: `401 Unauthorized` with `WWW-Authenticate: Basic` header when auth is missing or invalid
+
+### Example Authentication Headers
+```bash
+# With username only (password can be empty)
+Authorization: Basic YWxpY2U6  # base64("alice:")
+
+# With username and password (password validated upstream)
+Authorization: Basic YWxpY2U6cGFzc3dvcmQxMjM=  # base64("alice:password123")
+```
+
+### Authentication Behavior
+- Username extracted from Authorization header is used for all operations
+- Player names in game are automatically set to the authenticated username
+- Game lists are filtered to show only games where the authenticated user is a player
+- No username fields in request bodies (removed for security)
 
 ## Endpoints
 
-### 1. Get Games List
+### 1. Get Games List (User's Games)
 
 **GET `/games`**
 
-Retrieve a list of all available games.
+Retrieve a list of games where the authenticated user is a player.
+
+**Authentication Required**: Yes
 
 **Response: 200 OK**
 ```json
@@ -40,7 +69,7 @@ Retrieve a list of all available games.
       "players": [
         {
           "id": "player-123",
-          "name": "Alice",
+          "name": "alice",
           "initial_meld_met": false,
           "rack_size": 14
         }
@@ -53,11 +82,61 @@ Retrieve a list of all available games.
 }
 ```
 
-### 2. Create Game
+**Behavior**: 
+- Returns only games where the authenticated user is a player
+- Empty list if user is not in any games
+- Does not show games the user can join (use `/games/available` for that)
+
+**Errors**
+- `401 Unauthorized`: Missing or invalid authentication
+
+### 2. Get Available Games
+
+**GET `/games/available`**
+
+Retrieve a list of games that the authenticated user can join (status=waiting_for_players and user not already in them).
+
+**Authentication Required**: Yes
+
+**Response: 200 OK**
+```json
+{
+  "games": [
+    {
+      "game_id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "waiting_for_players",
+      "num_players": 4,
+      "players": [
+        {
+          "id": "player-123",
+          "name": "bob",
+          "initial_meld_met": false,
+          "rack_size": 14
+        }
+      ],
+      "current_player_index": 0,
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:05:00Z"
+    }
+  ]
+}
+```
+
+**Behavior**: 
+- Only shows games with status `waiting_for_players`
+- Filters out games where the authenticated user is already a player
+- Used by UI to show games user can join
+
+**Errors**
+- `401 Unauthorized`: Missing or invalid authentication
+
+### 3. Create Game
 
 **POST `/games`**
 
-Create a new game with specified number of players.
+Create a new game with specified number of players. The authenticated user automatically joins as the first player.
+
+**Authentication Required**: Yes
 
 **Request Body**
 ```json
@@ -66,15 +145,24 @@ Create a new game with specified number of players.
 }
 ```
 
-**Response: 201 Created**
+**Response: 200 OK**
 ```json
 {
   "game_id": "123e4567-e89b-12d3-a456-426614174000",
   "status": "waiting_for_players",
   "num_players": 4,
-  "players": [],
+  "players": [
+    {
+      "id": "player-123",
+      "name": "alice",
+      "initial_meld_met": false,
+      "rack": {
+        "tiles": ["7ra", "12kb", "ja", ...]
+      }
+    }
+  ],
   "current_player_index": 0,
-  "pool_size": 106,
+  "pool_size": 92,
   "board": {
     "melds": []
   },
@@ -84,45 +172,52 @@ Create a new game with specified number of players.
 }
 ```
 
+**Behavior**:
+- Automatically joins the creator as the first player
+- Creator's name is taken from authentication header
+- Creator receives their rack tiles in the response
+
 **Errors**
 - `400 Bad Request`: Invalid num_players (must be 2-4)
+- `401 Unauthorized`: Missing or invalid authentication
 
-### 3. Join Game
+### 4. Join Game
 
-**POST `/games/{game_id}/join`**
+**POST `/games/{game_id}/players`**
 
-Join an existing game as a player.
+Join an existing game as a player. Username taken from authentication header.
+
+**Authentication Required**: Yes
 
 **Path Parameters**
 - `game_id`: UUID string of the game to join
 
 **Request Body**
 ```json
-{
-  "player_name": "Alice"
-}
+{}
 ```
+(Empty - username comes from Authorization header)
 
 **Response: 200 OK**
 ```json
 {
   "game_id": "123e4567-e89b-12d3-a456-426614174000",
   "status": "in_progress",
-  "num_players": 4,
+  "num_players": 2,
   "players": [
     {
       "id": "player-123",
-      "name": "Alice", 
+      "name": "alice", 
+      "initial_meld_met": false,
+      "rack_size": 14
+    },
+    {
+      "id": "player-456",
+      "name": "bob",
       "initial_meld_met": false,
       "rack": {
         "tiles": ["7ra", "12kb", "ja", ...]
       }
-    },
-    {
-      "id": "player-456",
-      "name": "Bob",
-      "initial_meld_met": false,
-      "rack_size": 14
     }
   ],
   "current_player_index": 0,
@@ -136,24 +231,28 @@ Join an existing game as a player.
 }
 ```
 
-**Notes**
+**Behavior**
+- Player name set to authenticated username
 - Response shows full rack for the joining player, only rack_size for others
 - If player already joined, returns current game state for that player
 - Game starts automatically when all player slots are filled
 
 **Errors**
+- `401 Unauthorized`: Missing or invalid authentication
 - `404 Not Found`: Game not found
 - `409 Conflict`: Game is full or already completed
 
-### 4. Get Game State
+### 5. Get Game State
 
-**GET `/games/{game_id}/players/{player_name}`**
+**GET `/games/{game_id}/players/{player_id}`**
 
 Get current game state from the perspective of a specific player.
 
+**Authentication Required**: Yes
+
 **Path Parameters**
 - `game_id`: UUID string of the game
-- `player_name`: Name of the player requesting the state
+- `player_id`: UUID of the player requesting the state
 
 **Response: 200 OK**
 ```json
