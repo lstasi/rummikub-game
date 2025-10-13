@@ -102,15 +102,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             // If we don't have playerId, we need to get it by joining/rejoining
             // The backend knows who we are from the Authorization header
             if (!playerId) {
-                const response = await API.joinGame(gameId);
-                // Find our player in the response (by matching against all players since join returns our view)
-                // The player with rack data is us
-                const ourPlayer = response.players.find(p => p.rack !== undefined);
+                const joinResponse = await API.joinGame(gameId);
+                // The player with rack data is us (API only returns rack for requesting player)
+                const ourPlayer = joinResponse.players.find(p => p.rack !== undefined);
                 if (ourPlayer) {
                     playerId = ourPlayer.id;
                     GameState.playerId = playerId;
                     GameState.playerName = ourPlayer.name;
+                    GameState.gameId = gameId;
                     GameState.save();
+                    console.log('Identified our player:', playerId, ourPlayer.name);
+                } else {
+                    throw new Error('Could not identify player in join response');
                 }
             }
             
@@ -121,9 +124,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Loading game state for player:', playerId);
             const response = await API.getGameState(gameId, playerId);
             serverGameState = response;
-            console.log('Game state loaded. Current player index:', response.current_player_index);
-            console.log('Our player ID:', playerId);
-            console.log('Current player:', response.players[response.current_player_index]);
+            console.log('Game state loaded:');
+            console.log('- Current player index:', response.current_player_index);
+            console.log('- Our player ID:', playerId);
+            console.log('- Players:', response.players.map(p => ({ id: p.id, name: p.name })));
+            console.log('- Current player:', response.players[response.current_player_index]);
             
             // Initialize local state from server state
             resetLocalState();
@@ -431,7 +436,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     function isCurrentPlayer(pId) {
         if (!serverGameState) return false;
         const currentPlayer = serverGameState.players[serverGameState.current_player_index];
-        return currentPlayer && currentPlayer.id === pId;
+        const result = currentPlayer && currentPlayer.id === pId;
+        console.log('isCurrentPlayer check:', {
+            checkingPlayerId: pId,
+            currentPlayerIndex: serverGameState.current_player_index,
+            currentPlayerId: currentPlayer?.id,
+            currentPlayerName: currentPlayer?.name,
+            isMatch: result
+        });
+        return result;
     }
     
     // Action functions - Local modifications only (no API calls)

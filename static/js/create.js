@@ -40,14 +40,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const gameResponse = await API.createGame(numPlayers);
             const gameId = gameResponse.game_id;
             
-            // Get the current player's info from the response
-            // The server knows who we are from the Authorization header
-            const currentPlayer = gameResponse.players[gameResponse.players.length - 1]; // Last player is the creator
+            // Get our player's info from the response
+            // The player with rack data is us (API only returns rack for requesting player)
+            const ourPlayer = gameResponse.players.find(p => p.rack !== undefined);
+            if (!ourPlayer) {
+                throw new Error('Could not identify player in response');
+            }
             
             // Save game state
             GameState.gameId = gameId;
-            GameState.playerId = currentPlayer.id;
-            GameState.playerName = currentPlayer.name;
+            GameState.playerId = ourPlayer.id;
+            GameState.playerName = ourPlayer.name;
             GameState.save();
             
             // Navigate to game page

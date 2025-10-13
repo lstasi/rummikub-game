@@ -46,14 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Join the game using authenticated username from HA-PROXY
             const response = await API.joinGame(gameId);
             
-            // Get the current player's info from the response
-            // The server knows who we are from the Authorization header
-            const currentPlayer = response.players[response.players.length - 1]; // Last player is the one who just joined
+            // Get our player's info from the response
+            // The player with rack data is us (API only returns rack for requesting player)
+            const ourPlayer = response.players.find(p => p.rack !== undefined);
+            if (!ourPlayer) {
+                throw new Error('Could not identify player in response');
+            }
             
             // Save game state
             GameState.gameId = gameId;
-            GameState.playerId = currentPlayer.id;
-            GameState.playerName = currentPlayer.name;
+            GameState.playerId = ourPlayer.id;
+            GameState.playerName = ourPlayer.name;
             GameState.save();
             
             // Navigate to game page
