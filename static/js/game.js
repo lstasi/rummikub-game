@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let initialTurnRackState = null; // Rack state at start of turn
     let selectedTiles = new Set();
     let selectedMelds = new Set();
-    let playerId = null;
+    let playerId = GameState.playerId; // Load from saved state if available
     
     // Initialize
     await loadGameState();
@@ -99,24 +99,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             Utils.showLoading(loading, true);
             Utils.hideError(error);
             
-            // If we don't have playerId, we need to find it by joining
+            // If we don't have playerId, we need to get it by joining/rejoining
             // The backend knows who we are from the Authorization header
             if (!playerId) {
                 const response = await API.joinGame(gameId);
-                // Get the last player (the one who just joined) - that's us
-                const lastPlayer = response.players[response.players.length - 1];
-                playerId = lastPlayer.id;
-                GameState.playerId = playerId;
-                GameState.playerName = lastPlayer.name;
-                GameState.save();
+                // Find our player in the response (by matching against all players since join returns our view)
+                // The player with rack data is us
+                const ourPlayer = response.players.find(p => p.rack !== undefined);
+                if (ourPlayer) {
+                    playerId = ourPlayer.id;
+                    GameState.playerId = playerId;
+                    GameState.playerName = ourPlayer.name;
+                    GameState.save();
+                }
             }
             
             if (!playerId) {
                 throw new Error('Could not find player in game');
             }
             
+            console.log('Loading game state for player:', playerId);
             const response = await API.getGameState(gameId, playerId);
             serverGameState = response;
+            console.log('Game state loaded. Current player index:', response.current_player_index);
+            console.log('Our player ID:', playerId);
+            console.log('Current player:', response.players[response.current_player_index]);
             
             // Initialize local state from server state
             resetLocalState();
