@@ -19,12 +19,11 @@ from ..models.exceptions import (
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 
-from .dependencies import GameServiceDep
+from .dependencies import GameServiceDep, CurrentUserDep
 from .models import (
     GamesListResponse,
     GameStateResponse,
     CreateGameRequest,
-    JoinGameRequest,
     PlayTilesRequest,
     DrawTileRequest,
     MeldResponse,
@@ -126,13 +125,59 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
 
 
 @app.get("/games", response_model=GamesListResponse)
-async def get_games(game_service: GameServiceDep) -> GamesListResponse:
-    """Retrieve a list of all available games."""
+async def get_games(
+    game_service: GameServiceDep,
+    username: CurrentUserDep
+) -> GamesListResponse:
+    """Retrieve a list of games where the authenticated user is a player."""
     games = game_service.get_games()
     
-    # Convert to response format (no player-specific filtering for list view)
+    # Filter games to only include those where the user is a player
+    user_games = []
+    for game in games:
+        for player in game.players:
+            if player.name == username:
+                user_games.append(game)
+                break
+    
+    # Convert to response format
     game_responses = [
-        _convert_game_state_to_response(game) for game in games
+        _convert_game_state_to_response(game) for game in user_games
+    ]
+    
+    return GamesListResponse(games=game_responses)
+
+
+@app.get("/games/available", response_model=GamesListResponse)
+async def get_available_games(
+    game_service: GameServiceDep,
+    username: CurrentUserDep
+) -> GamesListResponse:
+    """Retrieve a list of games that the user can join (waiting for players and user not already in them)."""
+    from ..models import GameStatus
+    
+    games = game_service.get_games()
+    
+    # Filter to games that are waiting for players and user is not already in
+    available_games = []
+    for game in games:
+        # Only include games waiting for players
+        if game.status != GameStatus.WAITING_FOR_PLAYERS:
+            continue
+        
+        # Check if user is already in this game
+        user_in_game = False
+        for player in game.players:
+            if player.name == username:
+                user_in_game = True
+                break
+        
+        if not user_in_game:
+            available_games.append(game)
+    
+    # Convert to response format
+    game_responses = [
+        _convert_game_state_to_response(game) for game in available_games
     ]
     
     return GamesListResponse(games=game_responses)
@@ -141,33 +186,46 @@ async def get_games(game_service: GameServiceDep) -> GamesListResponse:
 @app.post("/games", response_model=GameStateResponse)
 async def create_game(
     request: CreateGameRequest,
+    username: CurrentUserDep,
     game_service: GameServiceDep
 ) -> GameStateResponse:
-    """Create a new game."""
+    """Create a new game and join as the first player."""
+    # Create the game
     game_state = game_service.create_game(request.num_players)
-    return _convert_game_state_to_response(game_state)
+    
+    # Automatically join the creator as the first player
+    game_state = game_service.join_game(str(game_state.game_id), username)
+    
+    # Find the player who just joined to return their curated view
+    requesting_player = None
+    for player in game_state.players:
+        if player.name == username:
+            requesting_player = player.id
+            break
+    
+    return _convert_game_state_to_response(game_state, requesting_player)
 
 
 @app.post("/games/{game_id}/players", response_model=GameStateResponse)
 async def join_game(
     game_id: str,
-    request: JoinGameRequest,
+    username: CurrentUserDep,
     game_service: GameServiceDep
 ) -> GameStateResponse:
-    """Join a game by game ID."""
+    """Join a game by game ID using authenticated username."""
     # Get original state before joining for rack sizes
     try:
         original_game_state = game_service._load_game_state(game_id)
     except GameNotFoundError:
         original_game_state = None
     
-    # Join the game (returns curated state for the joining player)
-    game_state = game_service.join_game(game_id, request.player_name)
+    # Join the game using authenticated username
+    game_state = game_service.join_game(game_id, username)
     
     # Find the player who just joined to return their curated view
     requesting_player = None
     for player in game_state.players:
-        if player.name == request.player_name:
+        if player.name == username:
             requesting_player = player.id
             break
     

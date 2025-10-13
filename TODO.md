@@ -57,3 +57,72 @@ This list includes only pending tasks. Completed items are tracked in the reposi
 - Advanced accessibility features
 - Animations and visual polish
 - Game statistics and history
+
+### Authentication Implementation (MVP)
+
+#### Current State
+- Username is passed in request body (`player_name` field)
+- No authentication mechanism
+- Game list shows all games
+- Frontend has username input fields on create/join pages
+
+#### Target State
+- Username extracted from HTTP Basic Auth header
+- API returns 401 when no auth header present
+- Username removed from API request bodies
+- Password validation delegated to upper layer (load balancer/API gateway)
+- Game list filtered to show only user's games
+- Separate endpoint lists games user can join (status=waiting_for_players)
+- Frontend sends username via Basic Auth header
+- Username input fields removed from UI
+
+#### Implementation Steps
+1. **Backend - Auth Dependency**
+   - Create `get_current_username()` dependency in `dependencies.py`
+   - Extract username from `Authorization: Basic` header
+   - Decode base64 credentials (format: "username:password")
+   - Return username (ignore password as validation happens upstream)
+   - Raise 401 HTTPException if no auth header or invalid format
+
+2. **Backend - API Updates**
+   - Remove `player_name` from `CreateGameRequest` model
+   - Remove `player_name` from `JoinGameRequest` model
+   - Add `CurrentUserDep` (username dependency) to:
+     - `POST /games` - use for first player joining
+     - `POST /games/{game_id}/players` - use for joining player
+   - Update `GET /games` to accept optional `username` parameter
+     - Filter to show only games where user is a player
+     - Default behavior: show all games (backward compatible)
+   - Add new endpoint `GET /games/available` 
+     - Returns games with status=waiting_for_players (user can join these)
+   - Update `GET /games/{game_id}/players/{player_id}` to validate auth
+     - Ensure authenticated username matches the player_id's name
+
+3. **Frontend - Auth Header**
+   - Update `API.request()` in `main.js` to add Basic Auth header
+   - Prompt for username on first visit (store in localStorage)
+   - Format: `Authorization: Basic base64(username:dummy_password)`
+   - Use empty or dummy password (validation happens upstream)
+
+4. **Frontend - UI Updates**
+   - Remove player name input from `create.html`
+   - Remove player name input from `join.html`
+   - Update `create.js` - remove playerName collection, use auth
+   - Update `join.js` - remove playerName collection, use auth
+   - Update `home.js`:
+     - Change player links to display only (no click action)
+     - Add "Join" button on each game card (for waiting_for_players status)
+     - Filter games to show user's games (use username query param)
+     - Show separate section for "Available Games" (games user can join)
+
+5. **Testing**
+   - Add auth tests in `tests/api/`
+   - Test 401 response when no auth header
+   - Test username extraction from various auth header formats
+   - Test game list filtering by username
+   - Update existing API tests to include auth header
+
+6. **Documentation**
+   - Update `doc/API.md` with authentication section
+   - Document Basic Auth header requirement
+   - Document new/updated endpoints

@@ -100,8 +100,8 @@ class CreateGameRequest(BaseModel):
 
 
 class JoinGameRequest(BaseModel):
-    """Request body for joining a game."""
-    player_name: str = Field(min_length=1, max_length=50, description="Player name")
+    """Request body for joining a game - now empty as username comes from auth header."""
+    pass  # Username now extracted from Authorization header
 
 
 class ErrorDetail(BaseModel):
