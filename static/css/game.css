@@ -4,7 +4,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: #2c5530; /* Green felt-like background */
+    background-color: #1a3a5a; /* Dark blue background */
     color: white;
 }
 
@@ -189,7 +189,7 @@
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 24px;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
@@ -286,7 +286,7 @@
     .tile {
         width: 40px;
         height: 56px;
-        font-size: 14px;
+        font-size: 18px;
     }
     
     .turn-actions,
@@ -305,7 +305,7 @@
     .tile {
         width: 35px;
         height: 50px;
-        font-size: 12px;
+        font-size: 16px;
     }
     
     .rack {
