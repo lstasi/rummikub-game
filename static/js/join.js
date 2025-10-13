@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
             GameState.save();
             
             // Navigate to game page
-            Utils.navigateTo('game', { game_id: gameId, name: username });
+            Utils.navigateTo('game', { game_id: gameId });
             
         } catch (error) {
             console.error('Failed to join game:', error);
