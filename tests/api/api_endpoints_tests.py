@@ -355,6 +355,12 @@ class TestAPIEndpointsMocked:
         app.dependency_overrides[get_game_service] = override_get_game_service
         
         self.client = TestClient(app)
+        
+        # Set up auth headers for testing
+        import base64
+        self.auth_alice = {"Authorization": f"Basic {base64.b64encode(b'alice:').decode()}"}
+        self.auth_bob = {"Authorization": f"Basic {base64.b64encode(b'bob:').decode()}"}
+        self.auth_charlie = {"Authorization": f"Basic {base64.b64encode(b'charlie:').decode()}"}
     
     def teardown_method(self):
         """Clean up after each test."""
@@ -366,14 +372,14 @@ class TestAPIEndpointsMocked:
         
         player1 = Player(
             id="player-1",
-            name="Alice",
+            name="alice",
             initial_meld_met=False,
             rack=Rack(tile_ids=["1ra", "2ra", "3ra", "4ra", "5ra", "6ra", "7ra", "8ra", "9ra", "10ra", "11ra", "12ra", "13ra", "1kb"])
         )
         
         player2 = Player(
             id="player-2",
-            name="Bob", 
+            name="bob", 
             initial_meld_met=False,
             rack=Rack(tile_ids=["1rb", "2rb", "3rb", "4rb", "5rb", "6rb", "7rb", "8rb", "9rb", "10rb", "11rb", "12rb", "13rb", "2kb"])
         )
@@ -393,8 +399,9 @@ class TestAPIEndpointsMocked:
         """Test create game endpoint with mocked service."""
         sample_game = self.create_sample_game_state(status=GameStatus.WAITING_FOR_PLAYERS)
         self.mock_service.create_game.return_value = sample_game
+        self.mock_service.join_game.return_value = sample_game
         
-        response = self.client.post("/games", json={"num_players": 3})
+        response = self.client.post("/games", json={"num_players": 3}, headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
@@ -402,6 +409,7 @@ class TestAPIEndpointsMocked:
         assert data["status"] == "waiting_for_players"
         
         self.mock_service.create_game.assert_called_once_with(3)
+        self.mock_service.join_game.assert_called_once()
     
     def test_join_game_mocked(self):
         """Test join game endpoint with mocked service."""
@@ -411,27 +419,30 @@ class TestAPIEndpointsMocked:
         
         response = self.client.post(
             "/games/12345678-1234-5678-1234-567812345678/players",
-            json={"player_name": "Charlie"}
+            json={},
+            headers=self.auth_charlie
         )
         
         assert response.status_code == 200
         data = response.json()
         assert data["game_id"] == "12345678-1234-5678-1234-567812345678"
         
-        self.mock_service.join_game.assert_called_once_with("12345678-1234-5678-1234-567812345678", "Charlie")
+        self.mock_service.join_game.assert_called_once_with("12345678-1234-5678-1234-567812345678", "charlie")
     
     def test_get_games_mocked(self):
         """Test get games endpoint with mocked service."""
+        # Create games where alice is a player
         sample_games = [
             self.create_sample_game_state("12345678-1234-5678-1234-567812345671"),
             self.create_sample_game_state("12345678-1234-5678-1234-567812345672")
         ]
         self.mock_service.get_games.return_value = sample_games
         
-        response = self.client.get("/games")
+        response = self.client.get("/games", headers=self.auth_alice)
         
         assert response.status_code == 200
         data = response.json()
+        # Should return 2 games since alice is in both sample games
         assert len(data["games"]) == 2
         
         self.mock_service.get_games.assert_called_once()
@@ -443,7 +454,8 @@ class TestAPIEndpointsMocked:
         
         response = self.client.post(
             "/games/12345678-1234-5678-1234-567812345678/players/player-1/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 200
@@ -509,6 +521,10 @@ class TestAPIErrorHandling:
         app.dependency_overrides[get_game_service] = override_get_game_service
         
         self.client = TestClient(app)
+        
+        # Set up auth headers for testing
+        import base64
+        self.auth_alice = {"Authorization": f"Basic {base64.b64encode(b'alice:').decode()}"}
     
     def teardown_method(self):
         """Clean up after each test."""
@@ -520,7 +536,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/nonexistent/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 404
@@ -534,7 +551,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/play",
-            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb"]}]}
+            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb"]}]},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 422
@@ -548,7 +566,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/play",
-            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb", "1ro"]}]}
+            json={"melds": [{"id": "m1", "kind": "group", "tiles": ["1ra", "1rb", "1ro"]}]},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 422
@@ -561,7 +580,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-2/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 403
@@ -574,7 +594,8 @@ class TestAPIErrorHandling:
         
         response = self.client.post(
             "/games/test-game/players/player-1/actions/draw",
-            json={}
+            json={},
+            headers=self.auth_alice
         )
         
         assert response.status_code == 400
