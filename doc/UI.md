@@ -442,17 +442,32 @@ const handleApiError = (error, action) => {
 - Player preferences and settings
 - Local game history
 
-### 2. Real-time Updates
+### 2. Internationalization (i18n)
+**Language Support**: English (en), Portuguese (pt), Spanish (es)
+
+**Implementation**:
+- Browser language detection from `navigator.language` and `navigator.languages`
+- URL parameter override: `?lang=pt` takes precedence over browser detection
+- Language preference sent via `Accept-Language` header to API
+- Translations managed in `static/js/i18n.js`
+- Dynamic translation updates when language changes
+
+**Supported Languages**:
+- English (en) - Default
+- Portuguese (pt) - Brazilian Portuguese
+- Spanish (es) - Spanish
+
+### 3. Real-time Updates
 **Current Implementation**: Polling-based updates
 **Future Enhancement**: WebSocket integration for real-time gameplay
 
-### 3. Offline Capability
+### 4. Offline Capability
 **Future Enhancement**:
 - Service worker for offline play
 - Local storage for game state persistence
 - Sync when connection restored
 
-### 4. Performance Monitoring
+### 5. Performance Monitoring
 **Metrics to Track**:
 - API response times
 - UI rendering performance

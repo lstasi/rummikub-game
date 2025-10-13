@@ -96,12 +96,18 @@ Join an existing game as a player.
 **Path Parameters**
 - `game_id`: UUID string of the game to join
 
+**Headers** (Optional)
+- `Authorization`: Basic Auth header (username will be used as player name if `player_name` not in body)
+- `Accept-Language`: Browser language preference (e.g., `en-US,en;q=0.9,pt;q=0.8`)
+
 **Request Body**
 ```json
 {
   "player_name": "Alice"
 }
 ```
+
+**Note**: `player_name` is optional if provided via Basic Auth header.
 
 **Response: 200 OK**
 ```json
@@ -140,8 +146,12 @@ Join an existing game as a player.
 - Response shows full rack for the joining player, only rack_size for others
 - If player already joined, returns current game state for that player
 - Game starts automatically when all player slots are filled
+- Basic Auth: Username from `Authorization: Basic <credentials>` header is extracted and used as player name if `player_name` not provided in request body
+- Language Detection: `Accept-Language` header is parsed to detect browser language preference (supports: en, pt, es)
+- If both Basic Auth username and `player_name` in body are provided, `player_name` takes precedence
 
 **Errors**
+- `400 Bad Request`: Player name not provided (neither in body nor via Basic Auth)
 - `404 Not Found`: Game not found
 - `409 Conflict`: Game is full or already completed
 
