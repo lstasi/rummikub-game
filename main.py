@@ -23,11 +23,12 @@ sys.path.insert(0, str(src_path))
 
 try:
     import uvicorn
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI, Request, Header, HTTPException
     from fastapi.responses import FileResponse, HTMLResponse
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
     from rummikub.api.main import app as api_app
+    from rummikub.api.dependencies import get_current_username
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Please install dependencies with: pip install -e .[dev]")
@@ -82,8 +83,15 @@ def create_app():
     app.mount("/api/v1", api_app)
     
     @app.get("/", response_class=HTMLResponse)
-    async def root(request: Request):
+    async def root(request: Request, authorization: str | None = Header(None)):
         """Root endpoint that serves appropriate page based on query parameters."""
+        # Require authentication for all pages
+        try:
+            username = get_current_username(authorization)
+        except HTTPException:
+            # Re-raise the 401 with WWW-Authenticate header
+            raise
+        
         params = dict(request.query_params)
         page = params.get('page', 'home')
         

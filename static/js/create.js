@@ -40,13 +40,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const gameResponse = await API.createGame(numPlayers);
             const gameId = gameResponse.game_id;
             
-            // Get authenticated username
-            const username = Auth.getUsername();
+            // Get the current player's info from the response
+            // The server knows who we are from the Authorization header
+            const currentPlayer = gameResponse.players[gameResponse.players.length - 1]; // Last player is the creator
             
             // Save game state
             GameState.gameId = gameId;
-            GameState.playerId = gameResponse.players.find(p => p.name === username)?.id;
-            GameState.playerName = username;
+            GameState.playerId = currentPlayer.id;
+            GameState.playerName = currentPlayer.name;
             GameState.save();
             
             // Navigate to game page

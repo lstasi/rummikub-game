@@ -43,16 +43,17 @@ document.addEventListener('DOMContentLoaded', () => {
             Utils.showLoading(loading, true);
             form.style.display = 'none';
             
-            // Join the game using authenticated username
+            // Join the game using authenticated username from HA-PROXY
             const response = await API.joinGame(gameId);
             
-            // Get authenticated username
-            const username = Auth.getUsername();
+            // Get the current player's info from the response
+            // The server knows who we are from the Authorization header
+            const currentPlayer = response.players[response.players.length - 1]; // Last player is the one who just joined
             
             // Save game state
             GameState.gameId = gameId;
-            GameState.playerId = response.players.find(p => p.name === username)?.id;
-            GameState.playerName = username;
+            GameState.playerId = currentPlayer.id;
+            GameState.playerName = currentPlayer.name;
             GameState.save();
             
             // Navigate to game page

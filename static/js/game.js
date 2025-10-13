@@ -4,9 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get game parameters
     const params = Utils.getUrlParams();
     const gameId = params.game_id || GameState.gameId;
-    const playerName = params.name || GameState.playerName;
     
-    if (!gameId || !playerName) {
+    if (!gameId) {
         Utils.navigateTo('home');
         return;
     }
@@ -101,10 +100,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             Utils.hideError(error);
             
             // If we don't have playerId, we need to find it by joining
+            // The backend knows who we are from the Authorization header
             if (!playerId) {
-                const response = await API.joinGame(gameId, playerName);
-                playerId = response.players.find(p => p.name === playerName)?.id;
+                const response = await API.joinGame(gameId);
+                // Get the last player (the one who just joined) - that's us
+                const lastPlayer = response.players[response.players.length - 1];
+                playerId = lastPlayer.id;
                 GameState.playerId = playerId;
+                GameState.playerName = lastPlayer.name;
                 GameState.save();
             }
             
