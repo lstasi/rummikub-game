@@ -19,7 +19,7 @@ from ..models.exceptions import (
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 
-from .dependencies import GameServiceDep
+from .dependencies import GameServiceDep, PlayerNameDep
 from .models import (
     GamesListResponse,
     GameStateResponse,
@@ -126,9 +126,26 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
 
 
 @app.get("/games", response_model=GamesListResponse)
-async def get_games(game_service: GameServiceDep) -> GamesListResponse:
-    """Retrieve a list of all available games."""
+async def get_games(
+    game_service: GameServiceDep,
+    status: str | None = None
+) -> GamesListResponse:
+    """Retrieve a list of all available games.
+    
+    Args:
+        status: Optional status filter (e.g., 'waiting_for_players', 'in_progress', 'completed')
+    """
     games = game_service.get_games()
+    
+    # Filter by status if provided
+    if status:
+        from ..models.game import GameStatus
+        try:
+            status_enum = GameStatus(status)
+            games = [game for game in games if game.status == status_enum]
+        except ValueError:
+            # Invalid status value, ignore filter
+            logger.warning(f"Invalid status filter: {status}")
     
     # Convert to response format (no player-specific filtering for list view)
     game_responses = [
@@ -138,14 +155,57 @@ async def get_games(game_service: GameServiceDep) -> GamesListResponse:
     return GamesListResponse(games=game_responses)
 
 
+@app.get("/games/my-games", response_model=GamesListResponse)
+async def get_my_games(
+    game_service: GameServiceDep,
+    player_name: PlayerNameDep
+) -> GamesListResponse:
+    """Retrieve a list of games where the authenticated player has joined.
+    
+    Requires Basic Auth with player name as username.
+    """
+    games = game_service.get_games()
+    
+    # Filter games where the authenticated player is a participant
+    my_games = []
+    for game in games:
+        for player in game.players:
+            if player.name == player_name:
+                my_games.append(game)
+                break
+    
+    # Convert to response format
+    game_responses = [
+        _convert_game_state_to_response(game) for game in my_games
+    ]
+    
+    return GamesListResponse(games=game_responses)
+
+
 @app.post("/games", response_model=GameStateResponse)
 async def create_game(
     request: CreateGameRequest,
-    game_service: GameServiceDep
+    game_service: GameServiceDep,
+    player_name: PlayerNameDep
 ) -> GameStateResponse:
-    """Create a new game."""
+    """Create a new game and automatically join the creator.
+    
+    Requires Basic Auth with player name as username.
+    """
+    # Create the game
     game_state = game_service.create_game(request.num_players)
-    return _convert_game_state_to_response(game_state)
+    
+    # Automatically join the creator to the game
+    game_state = game_service.join_game(str(game_state.game_id), player_name)
+    
+    # Find the creator player ID for response
+    creator_player_id = None
+    for player in game_state.players:
+        if player.name == player_name:
+            creator_player_id = player.id
+            break
+    
+    return _convert_game_state_to_response(game_state, creator_player_id)
 
 
 @app.post("/games/{game_id}/players", response_model=GameStateResponse)
