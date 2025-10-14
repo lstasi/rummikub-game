@@ -129,8 +129,13 @@ const API = {
     },
     
     // Game endpoints
-    async getGames() {
-        return this.request('/games');
+    async getGames(status = null) {
+        const endpoint = status ? `/games?status=${status}` : '/games';
+        return this.request(endpoint);
+    },
+    
+    async getMyGames() {
+        return this.request('/games/my-games');
     },
     
     async createGame(numPlayers) {

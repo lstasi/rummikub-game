@@ -1,77 +1,173 @@
-// Home page JavaScript for Rummikub Online
+// Home page JavaScript for Rummikub Online - Redesigned
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const gamesList = document.getElementById('games-list');
-    const noGames = document.getElementById('no-games');
-    const createGameBtn = document.getElementById('create-game-btn');
-    const joinGameBtn = document.getElementById('join-game-btn');
+    // DOM elements
+    const myGamesList = document.getElementById('my-games-list');
+    const availableGamesList = document.getElementById('available-games-list');
+    const noMyGames = document.getElementById('no-my-games');
+    const noAvailableGames = document.getElementById('no-available-games');
+    const quickCreateBtn = document.getElementById('quick-create-btn');
+    const numPlayersSelect = document.getElementById('num-players-select');
     const howToPlayBtn = document.getElementById('how-to-play-btn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const playerNameDisplay = document.getElementById('player-name-display');
+    const playerInfo = document.getElementById('player-info');
     
-    // Load games on page load
-    await loadGames();
+    // Display player name from GameState (if available from previous session)
+    GameState.load();
+    if (GameState.playerName) {
+        playerNameDisplay.textContent = GameState.playerName;
+        playerInfo.style.display = 'block';
+    }
     
-    // Set up periodic refresh
-    setInterval(loadGames, 5000); // Refresh every 5 seconds
+    // Load both game lists on page load
+    await loadAllGames();
+    
+    // Set up periodic refresh for both lists
+    setInterval(loadAllGames, 5000); // Refresh every 5 seconds
     
     // Event listeners
-    createGameBtn.addEventListener('click', () => {
-        Utils.navigateTo('create');
-    });
-    
-    joinGameBtn.addEventListener('click', () => {
-        Utils.navigateTo('join');
+    quickCreateBtn.addEventListener('click', async () => {
+        await createAndJoinGame();
     });
     
     howToPlayBtn.addEventListener('click', () => {
         showRules();
     });
     
-    async function loadGames() {
+    // Load both my games and available games
+    async function loadAllGames() {
+        await Promise.all([
+            loadMyGames(),
+            loadAvailableGames()
+        ]);
+    }
+    
+    // Load games where the current player has joined
+    async function loadMyGames() {
         try {
-            const response = await API.getGames();
-            displayGames(response.games || []);
-        } catch (error) {
-            console.error('Failed to load games:', error);
-            // Don't show error on home page, just show no games
-            displayGames([]);
+            const response = await API.getMyGames();
+            displayMyGames(response.games || []);
+        } catch (err) {
+            console.error('Failed to load my games:', err);
+            // If authentication fails or no player context, just show empty list
+            displayMyGames([]);
         }
     }
     
-    function displayGames(games) {
-        gamesList.innerHTML = '';
+    // Load available games (waiting for players)
+    async function loadAvailableGames() {
+        try {
+            const response = await API.getGames('waiting_for_players');
+            displayAvailableGames(response.games || []);
+        } catch (err) {
+            console.error('Failed to load available games:', err);
+            displayAvailableGames([]);
+        }
+    }
+    
+    // Display my games list
+    function displayMyGames(games) {
+        myGamesList.innerHTML = '';
         
         if (games.length === 0) {
-            noGames.style.display = 'block';
+            noMyGames.style.display = 'block';
             return;
         }
         
-        noGames.style.display = 'none';
+        noMyGames.style.display = 'none';
         
         games.forEach(game => {
-            const gameCard = createGameCard(game);
-            gamesList.appendChild(gameCard);
+            const gameCard = createMyGameCard(game);
+            myGamesList.appendChild(gameCard);
         });
     }
     
-    function createGameCard(game) {
+    // Display available games list
+    function displayAvailableGames(games) {
+        availableGamesList.innerHTML = '';
+        
+        if (games.length === 0) {
+            noAvailableGames.style.display = 'block';
+            return;
+        }
+        
+        noAvailableGames.style.display = 'none';
+        
+        games.forEach(game => {
+            const gameCard = createAvailableGameCard(game);
+            availableGamesList.appendChild(gameCard);
+        });
+    }
+    
+    // Create game card for "My Games" section
+    function createMyGameCard(game) {
         const card = document.createElement('div');
-        card.className = 'game-card';
+        card.className = 'game-card my-game-card';
         
         const statusClass = game.status === 'waiting_for_players' ? 'status-waiting' : 
                           game.status === 'in_progress' ? 'status-in-progress' : 'status-completed';
         
-        const canJoin = game.status === 'waiting_for_players';
-        const joinButton = canJoin ? 
-            `<button class="btn btn-primary join-btn" data-game-id="${game.game_id}">Join Game</button>` :
-            `<button class="btn btn-secondary" disabled>Game ${game.status.replace('_', ' ')}</button>`;
+        // Determine the action button based on status
+        let actionButton = '';
+        if (game.status === 'waiting_for_players') {
+            actionButton = `<button class="btn btn-warning resume-btn" data-game-id="${game.game_id}">Wait for Players</button>`;
+        } else if (game.status === 'in_progress') {
+            actionButton = `<button class="btn btn-primary resume-btn" data-game-id="${game.game_id}">Resume Game</button>`;
+        } else if (game.status === 'completed') {
+            actionButton = `<button class="btn btn-secondary" disabled>Game Completed</button>`;
+        }
         
-        // Create player links
+        // Create player list
         let playersSection = '';
         if (game.players && game.players.length > 0) {
-            const playerLinks = game.players.map(player => 
-                `<a href="#" class="player-link" data-game-id="${game.game_id}" data-player-name="${player.name}">${player.name}</a>`
-            ).join(', ');
-            playersSection = `<p>Players: ${playerLinks}</p>`;
+            const playerNames = game.players.map(player => player.name).join(', ');
+            playersSection = `<p>Players: ${playerNames}</p>`;
+        }
+        
+        // Show current turn info if game is in progress
+        let turnInfo = '';
+        if (game.status === 'in_progress' && game.current_player_name) {
+            turnInfo = `<p><strong>Current turn:</strong> ${game.current_player_name}</p>`;
+        }
+        
+        card.innerHTML = `
+            <h3>Game ${Utils.shortId(game.game_id)}</h3>
+            <p><span class="game-status ${statusClass}">${game.status.replace('_', ' ')}</span></p>
+            <p>Players: ${game.players.length}/${game.num_players}</p>
+            ${playersSection}
+            ${turnInfo}
+            <p>Created: ${Utils.formatTime(game.created_at)}</p>
+            <div style="margin-top: 15px;">
+                ${actionButton}
+            </div>
+        `;
+        
+        // Add resume functionality
+        const resumeBtn = card.querySelector('.resume-btn');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', () => {
+                const gameId = resumeBtn.dataset.gameId;
+                resumeGame(gameId);
+            });
+        }
+        
+        return card;
+    }
+    
+    // Create game card for "Available Games" section
+    function createAvailableGameCard(game) {
+        const card = document.createElement('div');
+        card.className = 'game-card available-game-card';
+        
+        const statusClass = 'status-waiting';
+        
+        // Create player list
+        let playersSection = '';
+        if (game.players && game.players.length > 0) {
+            const playerNames = game.players.map(player => player.name).join(', ');
+            playersSection = `<p>Players: ${playerNames}</p>`;
         }
         
         card.innerHTML = `
@@ -81,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${playersSection}
             <p>Created: ${Utils.formatTime(game.created_at)}</p>
             <div style="margin-top: 15px;">
-                ${joinButton}
+                <button class="btn btn-primary join-btn" data-game-id="${game.game_id}">Join Game</button>
             </div>
         `;
         
@@ -90,24 +186,123 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (joinBtn) {
             joinBtn.addEventListener('click', () => {
                 const gameId = joinBtn.dataset.gameId;
-                Utils.navigateTo('join', { game_id: gameId });
+                joinGameDirect(gameId);
             });
         }
-        
-        // Add player link functionality
-        const playerLinks = card.querySelectorAll('.player-link');
-        playerLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const gameId = link.dataset.gameId;
-                const playerName = link.dataset.playerName;
-                Utils.navigateTo('join', { game_id: gameId, name: playerName });
-            });
-        });
         
         return card;
     }
     
+    // Create a new game and automatically join it
+    async function createAndJoinGame() {
+        try {
+            Utils.hideError(error);
+            Utils.showLoading(loading, true);
+            quickCreateBtn.disabled = true;
+            
+            const numPlayers = parseInt(numPlayersSelect.value);
+            
+            // The backend now automatically joins the creator after creating
+            const response = await API.createGame(numPlayers);
+            const gameId = response.game_id;
+            
+            // Find the player's info from the response
+            const playerName = GameState.playerName || 'Player';
+            const player = response.players.find(p => p.name === playerName);
+            
+            if (player) {
+                // Save game state
+                GameState.gameId = gameId;
+                GameState.playerId = player.id;
+                GameState.playerName = playerName;
+                GameState.save();
+                
+                // Navigate to game page
+                Utils.navigateTo('game', { game_id: gameId });
+            } else {
+                throw new Error('Failed to find player in game after creation');
+            }
+            
+        } catch (err) {
+            console.error('Failed to create game:', err);
+            Utils.showLoading(loading, false);
+            quickCreateBtn.disabled = false;
+            
+            let errorMessage = 'Failed to create game. Please try again.';
+            if (err.message.includes('Authentication required') || err.message.includes('401')) {
+                errorMessage = 'Authentication required. Please refresh the page and enter your player name.';
+            }
+            
+            Utils.showError(error, errorMessage);
+            
+            // Hide error after 5 seconds
+            setTimeout(() => Utils.hideError(error), 5000);
+        }
+    }
+    
+    // Join an available game directly
+    async function joinGameDirect(gameId) {
+        try {
+            Utils.hideError(error);
+            
+            // Get player name from GameState or prompt
+            let playerName = GameState.playerName;
+            if (!playerName) {
+                playerName = prompt('Enter your name to join the game:');
+                if (!playerName || !playerName.trim()) {
+                    return; // User cancelled
+                }
+                playerName = playerName.trim();
+            }
+            
+            // Join the game
+            const response = await API.joinGame(gameId, playerName);
+            
+            // Find the player's info from the response
+            const player = response.players.find(p => p.name === playerName);
+            
+            if (player) {
+                // Save game state
+                GameState.gameId = gameId;
+                GameState.playerId = player.id;
+                GameState.playerName = playerName;
+                GameState.save();
+                
+                // Navigate to game page
+                Utils.navigateTo('game', { game_id: gameId });
+            } else {
+                throw new Error('Failed to find player in game after joining');
+            }
+            
+        } catch (err) {
+            console.error('Failed to join game:', err);
+            
+            let errorMessage = 'Failed to join game. Please try again.';
+            if (err.message.includes('not found')) {
+                errorMessage = 'Game not found.';
+            } else if (err.message.includes('full')) {
+                errorMessage = 'Game is full. Cannot join.';
+            } else if (err.message.includes('completed')) {
+                errorMessage = 'Game has already ended.';
+            } else if (err.message.includes('already')) {
+                errorMessage = 'You are already in this game.';
+            }
+            
+            Utils.showError(error, errorMessage);
+            
+            // Hide error after 5 seconds
+            setTimeout(() => Utils.hideError(error), 5000);
+        }
+    }
+    
+    // Resume a game (navigate to game page)
+    function resumeGame(gameId) {
+        // The game state should already be in localStorage from when we joined
+        // Just navigate to the game page
+        Utils.navigateTo('game', { game_id: gameId });
+    }
+    
+    // Show rules dialog
     function showRules() {
         const rulesText = `
 Rummikub Rules:
