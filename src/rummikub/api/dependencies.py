@@ -1,9 +1,10 @@
 """Dependency injection setup for FastAPI."""
 
-from typing import Annotated
+from typing import Annotated, Optional
 import os
+import base64
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Header, status
 from redis import Redis
 
 from ..service import GameService
@@ -32,5 +33,50 @@ def get_game_service(redis_client: Annotated[Redis, Depends(get_redis_client)]) 
     return GameService(redis_client)
 
 
+def get_player_name(authorization: Optional[str] = Header(None)) -> str:
+    """Extract player name from HTTP Basic Auth header.
+    
+    Args:
+        authorization: Authorization header value
+        
+    Returns:
+        Player name from Basic Auth username
+        
+    Raises:
+        HTTPException: 401 if authorization header is missing or invalid
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header required",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    if not authorization.startswith("Basic "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization scheme. Expected Basic Auth",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    try:
+        # Decode base64 credentials
+        encoded_credentials = authorization[6:]  # Remove "Basic " prefix
+        decoded = base64.b64decode(encoded_credentials).decode("utf-8")
+        username, _ = decoded.split(":", 1)  # Split username:password
+        
+        if not username:
+            raise ValueError("Empty username")
+            
+        return username
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authorization format: {str(e)}",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+
 # Type aliases for dependency injection
 GameServiceDep = Annotated[GameService, Depends(get_game_service)]
+PlayerNameDep = Annotated[str, Depends(get_player_name)]

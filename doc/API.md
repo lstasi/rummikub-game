@@ -12,7 +12,7 @@ The API provides a stateless REST interface over the GameService layer, with aut
 - **Validation**: Automatic request/response validation via Pydantic models
 - **Documentation**: Auto-generated OpenAPI spec at `/docs`
 - **Error Handling**: Structured error responses with proper HTTP status codes
-- **Authentication**: None required for v1 (future versions may add API keys/OAuth)
+- **Authentication**: HTTP Basic Auth required for player-specific endpoints (player name as username)
 
 ## Base Configuration
 
@@ -21,6 +21,30 @@ Base URL: http://localhost:8090/api/v1
 Content-Type: application/json
 ```
 
+## Authentication
+
+Some endpoints require HTTP Basic Authentication to identify the player making the request.
+
+**Basic Auth Format:**
+- Username: Player name
+- Password: Any value (not validated)
+
+**Example:**
+```
+Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
+```
+(Base64 encoded "Alice:password")
+
+**Endpoints Requiring Authentication:**
+- `POST /games` - Create and auto-join game
+- `GET /games/my-games` - Get player's games
+- `POST /games/{game_id}/players` - Join game (if authentication is added)
+- `GET /games/{game_id}/players/{player_id}` - Get game state (if authentication is added)
+- `POST /games/{game_id}/players/{player_id}/actions/*` - Execute actions (if authentication is added)
+
+**Endpoints Not Requiring Authentication:**
+- `GET /games` - List all games (public)
+
 ## Endpoints
 
 ### 1. Get Games List
@@ -28,6 +52,18 @@ Content-Type: application/json
 **GET `/games`**
 
 Retrieve a list of all available games.
+
+**Query Parameters:**
+- `status` (optional): Filter games by status
+  - Valid values: `waiting_for_players`, `in_progress`, `completed`
+  - If omitted or invalid, returns all games
+
+**Example Requests:**
+```
+GET /games                                    # All games
+GET /games?status=waiting_for_players        # Only games waiting for players
+GET /games?status=in_progress                # Only games in progress
+```
 
 **Response: 200 OK**
 ```json
@@ -57,7 +93,14 @@ Retrieve a list of all available games.
 
 **POST `/games`**
 
-Create a new game with specified number of players.
+Create a new game with specified number of players and automatically join the creator.
+
+**Authentication:** Required (Basic Auth with player name)
+
+**Request Headers:**
+```
+Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
+```
 
 **Request Body**
 ```json
@@ -66,15 +109,24 @@ Create a new game with specified number of players.
 }
 ```
 
-**Response: 201 Created**
+**Response: 200 OK**
 ```json
 {
   "game_id": "123e4567-e89b-12d3-a456-426614174000",
   "status": "waiting_for_players",
   "num_players": 4,
-  "players": [],
+  "players": [
+    {
+      "id": "player-123",
+      "name": "Alice",
+      "initial_meld_met": false,
+      "rack": {
+        "tiles": ["7ra", "12kb", "ja", ...]
+      }
+    }
+  ],
   "current_player_index": 0,
-  "pool_size": 106,
+  "pool_size": 92,
   "board": {
     "melds": []
   },
@@ -84,10 +136,79 @@ Create a new game with specified number of players.
 }
 ```
 
+**Notes:**
+- The authenticated player is automatically joined to the game after creation
+- Response includes the creator's full rack
+- Pool size reflects tiles distributed to the creator (106 - 14 = 92)
+
 **Errors**
 - `400 Bad Request`: Invalid num_players (must be 2-4)
+- `401 Unauthorized`: Missing or invalid authentication
 
-### 3. Join Game
+### 3. Get My Games
+
+**GET `/games/my-games`**
+
+Retrieve a list of games where the authenticated player has joined.
+
+**Authentication:** Required (Basic Auth with player name)
+
+**Request Headers:**
+```
+Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
+```
+
+**Response: 200 OK**
+```json
+{
+  "games": [
+    {
+      "game_id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "in_progress",
+      "num_players": 4,
+      "players": [
+        {
+          "id": "player-123",
+          "name": "Alice",
+          "initial_meld_met": false,
+          "rack_size": 14
+        },
+        {
+          "id": "player-456",
+          "name": "Bob",
+          "initial_meld_met": true,
+          "rack_size": 10
+        }
+      ],
+      "current_player_index": 0,
+      "pool_size": 45,
+      "board": {
+        "melds": [
+          {
+            "id": "meld-789",
+            "kind": "group",
+            "tiles": ["7ra", "7kb", "7bo"]
+          }
+        ]
+      },
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:15:00Z",
+      "winner_player_id": null
+    }
+  ]
+}
+```
+
+**Notes:**
+- Returns only games where the authenticated player (from Basic Auth username) is in the players list
+- Useful for showing a "My Games" section in the UI
+- Returns empty list if player has not joined any games
+- Response format is same as `GET /games` but filtered by player
+
+**Errors**
+- `401 Unauthorized`: Missing or invalid authentication
+
+### 4. Join Game
 
 **POST `/games/{game_id}/join`**
 
@@ -145,7 +266,7 @@ Join an existing game as a player.
 - `404 Not Found`: Game not found
 - `409 Conflict`: Game is full or already completed
 
-### 4. Get Game State
+### 5. Get Game State
 
 **GET `/games/{game_id}/players/{player_name}`**
 
@@ -201,7 +322,7 @@ Get current game state from the perspective of a specific player.
 **Errors**
 - `404 Not Found`: Game not found or player not in game
 
-### 5. Execute Turn - Play Tiles
+### 6. Execute Turn - Play Tiles
 
 **POST `/games/{game_id}/players/{player_id}/actions/play`**
 
@@ -268,7 +389,7 @@ Execute a play tiles action (place new melds and/or rearrange existing ones).
 - `404 Not Found`: Game not found
 - `422 Unprocessable Entity`: Rule violations (see error details below)
 
-### 6. Execute Turn - Draw Tile
+### 7. Execute Turn - Draw Tile
 
 **POST `/games/{game_id}/players/{player_id}/actions/draw`**
 

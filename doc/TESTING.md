@@ -13,11 +13,24 @@ The project uses the `*_tests.py` naming pattern for all test files:
 
 The project uses pytest for testing with the following structure:
 - `tests/models/` - Unit tests for domain models (tiles, melds, game state)
+- `tests/engine/` - Unit tests for game engine (actions, rules, game logic)
+- `tests/service/` - Unit tests for service layer (game service, Redis integration)
+- `tests/api/` - Integration and unit tests for API endpoints
 - `conftest.py` - Global pytest configuration and fixtures
 
 Current test files:
 - `tests/models/initialization_tests.py` - Basic model creation and setup
 - `tests/models/model_validation_tests.py` - Validation rules and edge cases
+- `tests/models/updated_model_validation_tests.py` - Additional validation tests
+- `tests/models/integration_tests.py` - Integration tests for models
+- `tests/models/tile_utils_tests.py` - Tile utility function tests
+- `tests/models/deterministic_meld_tests.py` - Deterministic meld ID tests
+- `tests/engine/game_engine_tests.py` - Game engine core functionality
+- `tests/engine/game_actions_tests.py` - Game action execution tests
+- `tests/engine/game_rules_tests.py` - Game rule validation tests
+- `tests/service/game_service_tests.py` - Service layer tests (Redis integration)
+- `tests/service/game_simulation_tests.py` - End-to-end game simulation tests
+- `tests/api/api_endpoints_tests.py` - API endpoint tests (integration and mocked)
 
 ## Test Execution
 
@@ -49,11 +62,14 @@ The CI pipeline:
 
 ## Current Coverage
 
-As of the latest run: 88% coverage (367 statements, 45 missed)
+As of the latest run: 89% coverage (1130 statements, 125 missed)
 
-## Future Test Additions
+### API Tests
 
-To be updated as tests are introduced for each layer:
-- Engine tests (`tests/engine/`) - Using `*_tests.py` naming pattern
-- Service tests (`tests/service/`) - Using `*_tests.py` naming pattern
-- API tests (`tests/api/`) - Using `*_tests.py` naming pattern
+API tests include:
+- **Integration tests** (`TestAPIEndpointsIntegration`): Test endpoints with real Redis and GameService
+- **Mocked tests** (`TestAPIEndpointsMocked`): Test endpoints with mocked services for fast execution
+- **Error handling tests** (`TestAPIErrorHandling`): Test error mapping and exception handling
+- **New endpoint tests** (`TestNewAPIEndpoints`): Test authentication, my-games endpoint, auto-join, and status filtering
+
+**Note:** Integration tests require Redis to be running. Use mocked tests for quick validation.
