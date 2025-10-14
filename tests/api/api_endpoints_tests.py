@@ -758,7 +758,6 @@ class TestNewAPIEndpoints:
     def test_create_game_with_auto_join(self):
         """Test POST /games endpoint with auto-join functionality."""
         import base64
-        from uuid import UUID
         
         # Mock the create_game to return a game without players
         empty_game = self.create_sample_game_state(status=GameStatus.WAITING_FOR_PLAYERS, players_data=[])
