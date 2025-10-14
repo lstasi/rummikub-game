@@ -14,12 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const playerNameDisplay = document.getElementById('player-name-display');
     const playerInfo = document.getElementById('player-info');
     
-    // Display player name from GameState (if available from previous session)
+    // Load game state (for gameId and playerId only)
     GameState.load();
-    if (GameState.playerName) {
-        playerNameDisplay.textContent = GameState.playerName;
-        playerInfo.style.display = 'block';
-    }
     
     // Load both game lists on page load
     await loadAllGames();
@@ -202,19 +198,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const numPlayers = parseInt(numPlayersSelect.value);
             
-            // The backend now automatically joins the creator after creating
+            // The backend automatically joins the creator (from Auth header)
             const response = await API.createGame(numPlayers);
             const gameId = response.game_id;
             
-            // Find the player's info from the response
-            const playerName = GameState.playerName || 'Player';
-            const player = response.players.find(p => p.name === playerName);
-            
-            if (player) {
-                // Save game state
+            // The backend returns the authenticated player's ID
+            // Find the first player (which is the creator who just joined)
+            if (response.players && response.players.length > 0) {
+                const player = response.players[0]; // Creator is always first
+                
+                // Save game state (without player name - it comes from backend)
                 GameState.gameId = gameId;
                 GameState.playerId = player.id;
-                GameState.playerName = playerName;
                 GameState.save();
                 
                 // Navigate to game page
@@ -230,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             let errorMessage = 'Failed to create game. Please try again.';
             if (err.message.includes('Authentication required') || err.message.includes('401')) {
-                errorMessage = 'Authentication required. Please refresh the page and enter your player name.';
+                errorMessage = 'Authentication required. Please refresh the page and enter your player name in the browser prompt.';
             }
             
             Utils.showError(error, errorMessage);
@@ -245,31 +240,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             Utils.hideError(error);
             
-            // Get player name from GameState or prompt
-            let playerName = GameState.playerName;
-            if (!playerName) {
-                playerName = prompt('Enter your name to join the game:');
-                if (!playerName || !playerName.trim()) {
-                    return; // User cancelled
+            // Join the game (player name comes from Auth header)
+            const response = await API.joinGame(gameId);
+            
+            // Backend returns the authenticated player's info
+            // Find the player who just joined (the one with the matching name from Auth)
+            if (response.players && response.players.length > 0) {
+                // The backend returns the player's ID in the response
+                // We need to find which player ID belongs to us
+                // The easiest way is to look for the player with rack data (only visible to us)
+                let myPlayer = null;
+                for (const player of response.players) {
+                    if (player.rack && player.rack.tiles) {
+                        myPlayer = player;
+                        break;
+                    }
                 }
-                playerName = playerName.trim();
-            }
-            
-            // Join the game
-            const response = await API.joinGame(gameId, playerName);
-            
-            // Find the player's info from the response
-            const player = response.players.find(p => p.name === playerName);
-            
-            if (player) {
-                // Save game state
-                GameState.gameId = gameId;
-                GameState.playerId = player.id;
-                GameState.playerName = playerName;
-                GameState.save();
                 
-                // Navigate to game page
-                Utils.navigateTo('game', { game_id: gameId });
+                if (myPlayer) {
+                    // Save game state (without player name - it comes from backend)
+                    GameState.gameId = gameId;
+                    GameState.playerId = myPlayer.id;
+                    GameState.save();
+                    
+                    // Navigate to game page
+                    Utils.navigateTo('game', { game_id: gameId });
+                } else {
+                    throw new Error('Failed to find player in game after joining');
+                }
             } else {
                 throw new Error('Failed to find player in game after joining');
             }
@@ -286,6 +284,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 errorMessage = 'Game has already ended.';
             } else if (err.message.includes('already')) {
                 errorMessage = 'You are already in this game.';
+            } else if (err.message.includes('Authentication required') || err.message.includes('401')) {
+                errorMessage = 'Authentication required. Please refresh the page and enter your player name in the browser prompt.';
             }
             
             Utils.showError(error, errorMessage);

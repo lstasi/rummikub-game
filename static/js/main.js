@@ -145,10 +145,10 @@ const API = {
         });
     },
     
-    async joinGame(gameId, playerName) {
+    async joinGame(gameId) {
         return this.request(`/games/${gameId}/players`, {
             method: 'POST',
-            body: { player_name: playerName }
+            body: {}
         });
     },
     
@@ -176,14 +176,12 @@ const GameState = {
     current: null,
     playerId: null,
     gameId: null,
-    playerName: null,
     
-    // Save game info to localStorage
+    // Save game info to localStorage (player name comes from Auth header, not stored)
     save() {
         localStorage.setItem('rummikub_game', JSON.stringify({
             gameId: this.gameId,
-            playerId: this.playerId,
-            playerName: this.playerName
+            playerId: this.playerId
         }));
     },
     
@@ -194,7 +192,6 @@ const GameState = {
             const data = JSON.parse(saved);
             this.gameId = data.gameId;
             this.playerId = data.playerId;
-            this.playerName = data.playerName;
         }
     },
     
@@ -204,7 +201,6 @@ const GameState = {
         this.current = null;
         this.playerId = null;
         this.gameId = null;
-        this.playerName = null;
     }
 };
 

@@ -19,12 +19,11 @@ from ..models.exceptions import (
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 
-from .dependencies import GameServiceDep, PlayerNameDep
+from .dependencies import GameServiceDep, PlayerNameDep, PlayerNameOptionalDep
 from .models import (
     GamesListResponse,
     GameStateResponse,
     CreateGameRequest,
-    JoinGameRequest,
     PlayTilesRequest,
     DrawTileRequest,
     MeldResponse,
@@ -128,12 +127,16 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
 @app.get("/games", response_model=GamesListResponse)
 async def get_games(
     game_service: GameServiceDep,
-    status: str | None = None
+    status: str | None = None,
+    player_name: PlayerNameOptionalDep = None
 ) -> GamesListResponse:
-    """Retrieve a list of all available games.
+    """Retrieve a list of available games (excluding games where the authenticated player has already joined).
+    
+    Optional Basic Auth: If provided, filters out games where the authenticated player has already joined.
     
     Args:
         status: Optional status filter (e.g., 'waiting_for_players', 'in_progress', 'completed')
+        player_name: Optional authenticated player name from Basic Auth header
     """
     games = game_service.get_games()
     
@@ -147,7 +150,20 @@ async def get_games(
             # Invalid status value, ignore filter
             logger.warning(f"Invalid status filter: {status}")
     
-    # Convert to response format (no player-specific filtering for list view)
+    # Filter out games where the authenticated player has already joined
+    if player_name:
+        filtered_games = []
+        for game in games:
+            player_in_game = False
+            for player in game.players:
+                if player.name == player_name:
+                    player_in_game = True
+                    break
+            if not player_in_game:
+                filtered_games.append(game)
+        games = filtered_games
+    
+    # Convert to response format
     game_responses = [
         _convert_game_state_to_response(game) for game in games
     ]
@@ -211,10 +227,13 @@ async def create_game(
 @app.post("/games/{game_id}/players", response_model=GameStateResponse)
 async def join_game(
     game_id: str,
-    request: JoinGameRequest,
-    game_service: GameServiceDep
+    game_service: GameServiceDep,
+    player_name: PlayerNameDep
 ) -> GameStateResponse:
-    """Join a game by game ID."""
+    """Join a game by game ID.
+    
+    Requires Basic Auth with player name as username.
+    """
     # Get original state before joining for rack sizes
     try:
         original_game_state = game_service._load_game_state(game_id)
@@ -222,12 +241,12 @@ async def join_game(
         original_game_state = None
     
     # Join the game (returns curated state for the joining player)
-    game_state = game_service.join_game(game_id, request.player_name)
+    game_state = game_service.join_game(game_id, player_name)
     
     # Find the player who just joined to return their curated view
     requesting_player = None
     for player in game_state.players:
-        if player.name == request.player_name:
+        if player.name == player_name:
             requesting_player = player.id
             break
     
