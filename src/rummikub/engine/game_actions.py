@@ -64,6 +64,7 @@ class GameActions:
             from ..models import GameState
             updated_game_state = GameState(
                 game_id=updated_game_state.game_id,
+                game_name=updated_game_state.game_name,
                 players=updated_game_state.players,
                 pool=updated_game_state.pool,
                 board=updated_game_state.board,

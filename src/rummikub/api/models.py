@@ -78,6 +78,7 @@ class PlayerResponse(BaseModel):
 class GameStateResponse(BaseModel):
     """Response model for game state."""
     game_id: str
+    game_name: str
     status: Literal["waiting_for_players", "in_progress", "completed"]
     num_players: int
     players: List[PlayerResponse]
