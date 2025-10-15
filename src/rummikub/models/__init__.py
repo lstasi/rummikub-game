@@ -12,7 +12,7 @@ from .actions import Turn, Action, PlayTilesAction, DrawAction
 
 # Base classes and utilities
 from .base import generate_uuid, to_dict, to_json
-from .name_generator import GameNameGenerator, ThemeType
+from .name_generator import GameNameGenerator
 
 # Validation utilities are now integrated into model classes
 
@@ -66,7 +66,6 @@ __all__ = [
     "to_dict",
     "to_json",
     "GameNameGenerator",
-    "ThemeType",
     
     # Exceptions
     "RummikubError",
