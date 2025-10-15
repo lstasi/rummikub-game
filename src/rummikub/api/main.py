@@ -19,7 +19,7 @@ from ..models.exceptions import (
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 
-from .dependencies import GameServiceDep, PlayerNameDep, PlayerNameOptionalDep
+from .dependencies import GameServiceDep, PlayerNameDep
 from .models import (
     GamesListResponse,
     GameStateResponse,
@@ -127,16 +127,17 @@ def _convert_game_state_to_response(game_state, requesting_player_id: str | None
 @app.get("/games", response_model=GamesListResponse)
 async def get_games(
     game_service: GameServiceDep,
-    status: str | None = None,
-    player_name: PlayerNameOptionalDep = None
+    player_name: PlayerNameDep,
+    status: str | None = None
 ) -> GamesListResponse:
     """Retrieve a list of available games (excluding games where the authenticated player has already joined).
     
-    Optional Basic Auth: If provided, filters out games where the authenticated player has already joined.
+    Requires Basic Auth with player name as username.
     
     Args:
+        game_service: Game service dependency
+        player_name: Authenticated player name from Basic Auth header
         status: Optional status filter (e.g., 'waiting_for_players', 'in_progress', 'completed')
-        player_name: Optional authenticated player name from Basic Auth header
     """
     games = game_service.get_games()
     
@@ -151,17 +152,16 @@ async def get_games(
             logger.warning(f"Invalid status filter: {status}")
     
     # Filter out games where the authenticated player has already joined
-    if player_name:
-        filtered_games = []
-        for game in games:
-            player_in_game = False
-            for player in game.players:
-                if player.name == player_name:
-                    player_in_game = True
-                    break
-            if not player_in_game:
-                filtered_games.append(game)
-        games = filtered_games
+    filtered_games = []
+    for game in games:
+        player_in_game = False
+        for player in game.players:
+            if player.name == player_name:
+                player_in_game = True
+                break
+        if not player_in_game:
+            filtered_games.append(game)
+    games = filtered_games
     
     # Convert to response format
     game_responses = [

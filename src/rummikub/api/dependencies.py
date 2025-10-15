@@ -77,38 +77,6 @@ def get_player_name(authorization: Optional[str] = Header(None)) -> str:
         )
 
 
-def get_player_name_optional(
-    authorization: str | None = Header(None, alias="Authorization")
-) -> str | None:
-    """Extract player name from Basic Auth header (optional - returns None if not provided).
-    
-    Args:
-        authorization: Authorization header value
-        
-    Returns:
-        Player name from Basic Auth username, or None if not provided
-    """
-    if not authorization:
-        return None
-    
-    if not authorization.startswith("Basic "):
-        return None
-    
-    try:
-        # Decode base64 credentials
-        encoded_credentials = authorization[6:]  # Remove "Basic " prefix
-        decoded = base64.b64decode(encoded_credentials).decode("utf-8")
-        username, _ = decoded.split(":", 1)  # Split username:password
-        
-        if not username:
-            return None
-            
-        return username
-    except Exception:
-        return None
-
-
 # Type aliases for dependency injection
 GameServiceDep = Annotated[GameService, Depends(get_game_service)]
 PlayerNameDep = Annotated[str, Depends(get_player_name)]
-PlayerNameOptionalDep = Annotated[str | None, Depends(get_player_name_optional)]

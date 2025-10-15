@@ -296,10 +296,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // Resume a game (navigate to game page)
-    function resumeGame(gameId) {
-        // The game state should already be in localStorage from when we joined
-        // Just navigate to the game page
-        Utils.navigateTo('game', { game_id: gameId });
+    async function resumeGame(gameId) {
+        try {
+            // Check if we have playerId in localStorage
+            GameState.load();
+            
+            // If localStorage is missing or doesn't have playerId for this game, re-join
+            if (!GameState.playerId || GameState.gameId !== gameId) {
+                Utils.hideError(error);
+                
+                // Re-join the game to get our playerId (backend uses Auth header)
+                const response = await API.joinGame(gameId);
+                
+                // Find our player (the one with rack data visible to us)
+                let myPlayer = null;
+                for (const player of response.players) {
+                    if (player.rack && player.rack.tiles) {
+                        myPlayer = player;
+                        break;
+                    }
+                }
+                
+                if (myPlayer) {
+                    // Save game state
+                    GameState.gameId = gameId;
+                    GameState.playerId = myPlayer.id;
+                    GameState.save();
+                } else {
+                    throw new Error('Failed to find player in game after re-joining');
+                }
+            }
+            
+            // Navigate to game page
+            Utils.navigateTo('game', { game_id: gameId });
+            
+        } catch (err) {
+            console.error('Failed to resume game:', err);
+            
+            let errorMessage = 'Failed to resume game. Please try again.';
+            if (err.message.includes('already')) {
+                // If already in game but we don't have playerId, we need to handle this
+                // This shouldn't happen normally, but if it does, we can try to get the game state
+                errorMessage = 'Already in game. Refreshing...';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else if (err.message.includes('full')) {
+                errorMessage = 'Game is full.';
+            } else if (err.message.includes('not found')) {
+                errorMessage = 'Game not found.';
+            }
+            
+            Utils.showError(error, errorMessage);
+            setTimeout(() => Utils.hideError(error), 5000);
+        }
     }
     
     // Show rules dialog
