@@ -180,6 +180,7 @@ class GameRules:
                 # Player has won - mark game as completed
                 return GameState(
                     game_id=game_state.game_id,
+                    game_name=game_state.game_name,
                     players=game_state.players,
                     pool=game_state.pool,
                     board=game_state.board,

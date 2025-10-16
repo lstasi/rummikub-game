@@ -267,6 +267,7 @@ class GameService:
         # Reconstruct GameState
         return GameState(
             game_id=raw_data['game_id'],
+            game_name=raw_data['game_name'],
             players=players,
             current_player_index=raw_data['current_player_index'],
             pool=pool,

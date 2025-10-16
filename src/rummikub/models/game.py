@@ -10,6 +10,7 @@ from .base import generate_uuid
 from .exceptions import GameStateError
 from .melds import Meld
 from .tiles import TileUtils, Color
+from .name_generator import GameNameGenerator
 
 
 @dataclass
@@ -313,6 +314,7 @@ class GameState:
     """Complete state of a Rummikub game."""
     
     game_id: UUID = field(default_factory=uuid4)
+    game_name: str = field(default_factory=lambda: GameNameGenerator.generate())
     players: List[Player] = field(default_factory=list)
     current_player_index: int = 0
     pool: Pool = field(default_factory=Pool)
@@ -422,6 +424,7 @@ class GameState:
         """
         # Apply changes to current values
         game_id = changes.get('game_id', self.game_id)
+        game_name = changes.get('game_name', self.game_name)
         players = changes.get('players', self.players)
         current_player_index = changes.get('current_player_index', self.current_player_index)
         pool = changes.get('pool', self.pool)
@@ -435,6 +438,7 @@ class GameState:
         
         return GameState(
             game_id=game_id,
+            game_name=game_name,
             players=players,
             current_player_index=current_player_index,
             pool=pool,

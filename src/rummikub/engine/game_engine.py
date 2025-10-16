@@ -195,6 +195,7 @@ class GameEngine:
         # we just need to change the status to IN_PROGRESS
         return GameState(
             game_id=game_state.game_id,
+            game_name=game_state.game_name,
             players=game_state.players,
             pool=game_state.pool,
             board=game_state.board,
