@@ -4,9 +4,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get game parameters
     const params = Utils.getUrlParams();
     const gameId = params.game_id || GameState.gameId;
-    const playerName = params.name || GameState.playerName;
+    let playerId = GameState.playerId; // playerId is set when joining/creating game
     
-    if (!gameId || !playerName) {
+    if (!gameId) {
         Utils.navigateTo('home');
         return;
     }
@@ -41,7 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let initialTurnRackState = null; // Rack state at start of turn
     let selectedTiles = new Set();
     let selectedMelds = new Set();
-    let playerId = null;
     
     // Initialize
     await loadGameState();
@@ -100,16 +99,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             Utils.showLoading(loading, true);
             Utils.hideError(error);
             
-            // If we don't have playerId, we need to find it by joining
+            // Player must have joined via home page first (playerId is required)
             if (!playerId) {
-                const response = await API.joinGame(gameId, playerName);
-                playerId = response.players.find(p => p.name === playerName)?.id;
-                GameState.playerId = playerId;
-                GameState.save();
-            }
-            
-            if (!playerId) {
-                throw new Error('Could not find player in game');
+                throw new Error('Player ID not found. Please join the game from the home page.');
             }
             
             const response = await API.getGameState(gameId, playerId);

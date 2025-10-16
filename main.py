@@ -90,8 +90,6 @@ def create_app():
         # Map page names to HTML files
         page_files = {
             'home': 'home.html',
-            'create': 'create.html', 
-            'join': 'join.html',
             'game': 'game.html',
             'win': 'win.html'
         }

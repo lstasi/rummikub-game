@@ -19,12 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Event listeners
     playAgainBtn.addEventListener('click', () => {
-        // For MVP: Just go to create game
-        Utils.navigateTo('create');
+        // Clear game state and go to home page
+        GameState.clear();
+        Utils.navigateTo('home');
     });
     
     newGameBtn.addEventListener('click', () => {
-        Utils.navigateTo('create');
+        // Clear game state and go to home page
+        GameState.clear();
+        Utils.navigateTo('home');
     });
     
     homeBtn.addEventListener('click', () => {
