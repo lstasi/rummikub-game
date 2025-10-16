@@ -108,6 +108,10 @@ class GameActions:
         # 1. Identify newly played tiles
         newly_played_tiles = GameRules.identify_newly_played_tiles(action.melds, game_state.board.melds)
         
+        # 1.5. Validate that at least one tile is being played (no empty moves)
+        if not newly_played_tiles:
+            raise InvalidMoveError("Cannot play without placing any new tiles. Use draw action instead.")
+        
         # 2. Validate tile ownership
         GameRules.validate_tile_ownership(player, newly_played_tiles)
         
