@@ -112,7 +112,13 @@ class TestAPIEndpointsIntegration:
     
     def test_get_games_empty(self):
         """Test getting games list when no games exist."""
-        response = self.client.get("/games")
+        import base64
+        
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
+        response = self.client.get("/games", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -122,16 +128,18 @@ class TestAPIEndpointsIntegration:
         """Test getting games list with existing games."""
         import base64
         
-        # Create auth header
-        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
-        headers = {"Authorization": f"Basic {credentials}"}
+        # Create auth header for Alice
+        alice_credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        alice_headers = {"Authorization": f"Basic {alice_credentials}"}
         
         # Create a game first (creator auto-joins)
-        create_response = self.client.post("/games", json={"num_players": 2}, headers=headers)
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=alice_headers)
         assert create_response.status_code == 200
         
-        # Get games list
-        response = self.client.get("/games")
+        # Get games list as Bob (should see Alice's game since Bob hasn't joined)
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
+        response = self.client.get("/games", headers=bob_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -154,10 +162,13 @@ class TestAPIEndpointsIntegration:
         create_response = self.client.post("/games", json={"num_players": 2}, headers=headers)
         game_id = create_response.json()["game_id"]
         
-        # Join as second player (Bob)
+        # Join as second player (Bob) - now using Basic Auth
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
         response = self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Bob"}
+            json={},
+            headers=bob_headers
         )
         
         assert response.status_code == 200
@@ -186,16 +197,22 @@ class TestAPIEndpointsIntegration:
         create_response = self.client.post("/games", json={"num_players": 3}, headers=headers)
         game_id = create_response.json()["game_id"]
         
-        # Join as second player
+        # Join as second player (Bob) - now using Basic Auth
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
         self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Bob"}
+            json={},
+            headers=bob_headers
         )
         
-        # Join as third player (game should start now)
+        # Join as third player (Charlie) - game should start now
+        charlie_credentials = base64.b64encode(b"Charlie:password").decode("utf-8")
+        charlie_headers = {"Authorization": f"Basic {charlie_credentials}"}
         response = self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Charlie"}
+            json={},
+            headers=charlie_headers
         )
         
         assert response.status_code == 200
@@ -217,7 +234,7 @@ class TestAPIEndpointsIntegration:
         assert alice["rack_size"] == 14
     
     def test_join_game_invalid_name(self):
-        """Test joining game with invalid player name."""
+        """Test joining game with invalid player name (empty username in Auth header)."""
         import base64
         
         # Create game with Alice as creator
@@ -226,18 +243,27 @@ class TestAPIEndpointsIntegration:
         create_response = self.client.post("/games", json={"num_players": 2}, headers=headers)
         game_id = create_response.json()["game_id"]
         
-        # Empty name
+        # Empty name in Auth header - this should be caught by auth validation
+        empty_credentials = base64.b64encode(b":password").decode("utf-8")
+        empty_headers = {"Authorization": f"Basic {empty_credentials}"}
         response = self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": ""}
+            json={},
+            headers=empty_headers
         )
-        assert response.status_code == 422
+        assert response.status_code == 401  # Auth validation error
     
     def test_join_nonexistent_game(self):
         """Test joining non-existent game."""
+        import base64
+        
+        # Try to join with Basic Auth
+        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
         response = self.client.post(
             "/games/nonexistent-id/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=headers
         )
         
         assert response.status_code == 404
@@ -256,9 +282,12 @@ class TestAPIEndpointsIntegration:
         alice_id = create_response.json()["players"][0]["id"]
         
         # Bob joins
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
         self.client.post(
             f"/games/{game_id}/players",
-            json={"player_name": "Bob"}
+            json={},
+            headers=bob_headers
         )
         
         # Get Alice's view
@@ -314,7 +343,9 @@ class TestAPIEndpointsIntegration:
         alice_id = create_response.json()["players"][0]["id"]
         
         # Start game by adding second player
-        self.client.post(f"/games/{game_id}/players", json={"player_name": "Bob"})
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
+        self.client.post(f"/games/{game_id}/players", json={}, headers=bob_headers)
         
         # Draw tile (Alice's turn)
         response = self.client.post(
@@ -344,7 +375,9 @@ class TestAPIEndpointsIntegration:
         alice_id = create_response.json()["players"][0]["id"]
         
         # Start game by adding second player
-        self.client.post(f"/games/{game_id}/players", json={"player_name": "Bob"})
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
+        self.client.post(f"/games/{game_id}/players", json={}, headers=bob_headers)
         
         # Get Alice's tiles to construct a valid meld
         state_response = self.client.get(f"/games/{game_id}/players/{alice_id}")
@@ -470,13 +503,20 @@ class TestAPIEndpointsMocked:
     
     def test_join_game_mocked(self):
         """Test join game endpoint with mocked service."""
+        import base64
+        
         sample_game = self.create_sample_game_state()
         self.mock_service.join_game.return_value = sample_game
         self.mock_service._load_game_state.side_effect = GameNotFoundError("Not found")
         
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"Charlie:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
         response = self.client.post(
             "/games/12345678-1234-5678-1234-567812345678/players",
-            json={"player_name": "Charlie"}
+            json={},
+            headers=headers
         )
         
         assert response.status_code == 200
@@ -487,13 +527,19 @@ class TestAPIEndpointsMocked:
     
     def test_get_games_mocked(self):
         """Test get games endpoint with mocked service."""
+        import base64
+        
         sample_games = [
             self.create_sample_game_state("12345678-1234-5678-1234-567812345671"),
             self.create_sample_game_state("12345678-1234-5678-1234-567812345672")
         ]
         self.mock_service.get_games.return_value = sample_games
         
-        response = self.client.get("/games")
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"TestUser:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
+        response = self.client.get("/games", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -581,11 +627,18 @@ class TestAPIErrorHandling:
     
     def test_game_not_found_error(self):
         """Test GameNotFoundError mapping to 404."""
+        import base64
+        
         self.mock_service.join_game.side_effect = GameNotFoundError("Game not found")
+        
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
         
         response = self.client.post(
             "/games/nonexistent/players",
-            json={"player_name": "Alice"}
+            json={},
+            headers=headers
         )
         
         assert response.status_code == 404
@@ -839,6 +892,8 @@ class TestNewAPIEndpoints:
     
     def test_get_games_with_status_filter(self):
         """Test GET /games endpoint with status query parameter."""
+        import base64
+        
         # Create games with different statuses
         game1 = self.create_sample_game_state("game-1", status=GameStatus.WAITING_FOR_PLAYERS)
         game2 = self.create_sample_game_state("game-2", status=GameStatus.IN_PROGRESS)
@@ -846,8 +901,12 @@ class TestNewAPIEndpoints:
         
         self.mock_service.get_games.return_value = [game1, game2, game3]
         
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"TestUser:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
         # Test filtering by waiting_for_players
-        response = self.client.get("/games?status=waiting_for_players")
+        response = self.client.get("/games?status=waiting_for_players", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -857,12 +916,18 @@ class TestNewAPIEndpoints:
     
     def test_get_games_with_invalid_status_filter(self):
         """Test GET /games endpoint with invalid status filter."""
+        import base64
+        
         game1 = self.create_sample_game_state("game-1", status=GameStatus.IN_PROGRESS)
         
         self.mock_service.get_games.return_value = [game1]
         
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"TestUser:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
         # Test with invalid status - should ignore filter and return all
-        response = self.client.get("/games?status=invalid_status")
+        response = self.client.get("/games?status=invalid_status", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -870,12 +935,18 @@ class TestNewAPIEndpoints:
     
     def test_get_games_without_status_filter(self):
         """Test GET /games endpoint without status filter (backward compatibility)."""
+        import base64
+        
         game1 = self.create_sample_game_state("game-1", status=GameStatus.WAITING_FOR_PLAYERS)
         game2 = self.create_sample_game_state("game-2", status=GameStatus.IN_PROGRESS)
         
         self.mock_service.get_games.return_value = [game1, game2]
         
-        response = self.client.get("/games")
+        # Add Basic Auth header
+        credentials = base64.b64encode(b"TestUser:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        
+        response = self.client.get("/games", headers=headers)
         
         assert response.status_code == 200
         data = response.json()

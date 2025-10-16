@@ -8,28 +8,59 @@
 </head>
 <body>
     <div class="container">
-        <header>
+        <header class="home-header">
             <h1>Rummikub Online</h1>
+            <div id="player-info" class="player-info" style="display: none;">
+                <span>Welcome, <strong id="player-name-display"></strong>!</span>
+            </div>
         </header>
         
-        <main>
-            <section class="games-section">
-                <h2>Available Games</h2>
-                <div id="games-list" class="games-list">
-                    <!-- Games will be loaded here -->
-                </div>
-                <div id="no-games" class="no-games" style="display: none;">
-                    <p>No games available</p>
+        <main class="home-main">
+            <!-- Quick Create Section -->
+            <section class="quick-create-section">
+                <h2>Quick Create</h2>
+                <div class="quick-create-form">
+                    <label for="num-players-select">Players:</label>
+                    <select id="num-players-select" class="num-players-select">
+                        <option value="2">2 Players</option>
+                        <option value="3">3 Players</option>
+                        <option value="4" selected>4 Players</option>
+                    </select>
+                    <button id="quick-create-btn" class="btn btn-primary">Create & Join</button>
+                    <button id="how-to-play-btn" class="btn btn-tertiary">How to Play</button>
                 </div>
             </section>
             
-            <section class="actions-section">
-                <div class="action-buttons">
-                    <button id="create-game-btn" class="btn btn-primary" data-i18n="create-game-btn">Create New Game</button>
-                    <button id="join-game-btn" class="btn btn-secondary" data-i18n="join-game-btn">Join Existing Game</button>
-                    <button id="how-to-play-btn" class="btn btn-tertiary" data-i18n="how-to-play-btn">How to Play</button>
-                </div>
-            </section>
+            <!-- Two-column layout for game lists -->
+            <div class="games-container">
+                <!-- My Games Section -->
+                <section class="games-section my-games-section">
+                    <h2>My Games</h2>
+                    <div id="my-games-list" class="games-list">
+                        <!-- My games will be loaded here -->
+                    </div>
+                    <div id="no-my-games" class="no-games" style="display: none;">
+                        <p>You haven't joined any games yet</p>
+                    </div>
+                </section>
+                
+                <!-- Available Games Section -->
+                <section class="games-section available-games-section">
+                    <h2>Available Games</h2>
+                    <div id="available-games-list" class="games-list">
+                        <!-- Available games will be loaded here -->
+                    </div>
+                    <div id="no-available-games" class="no-games" style="display: none;">
+                        <p>No games available - create one!</p>
+                    </div>
+                </section>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <p>Loading games...</p>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
         </main>
     </div>
     

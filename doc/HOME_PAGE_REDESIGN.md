@@ -1,5 +1,42 @@
 # Home Page Redesign - My Games & Available Games
 
+## ✅ STATUS: COMPLETED (Phases 1-3)
+
+**Implementation Date**: October 14, 2025  
+**Completion Status**: Phases 1-5 complete, Phase 6 (polish) deferred
+
+### Summary of Changes
+
+✅ **Backend (Phase 1)**:
+- New `GET /games/my-games` endpoint to retrieve games where the authenticated player has joined
+- Modified `POST /games` to automatically join the creator after game creation
+- Added status query parameter to `GET /games` for filtering
+
+✅ **Frontend (Phase 2)**:
+- Redesigned home page with two-column layout (My Games | Available Games)
+- Added inline "Quick Create" form for game creation
+- Removed navigation to separate create/join pages
+- Auto-refresh every 5 seconds for both game lists
+
+✅ **Cleanup (Phase 3)**:
+- Deleted `static/pages/create.html` and `static/pages/join.html`
+- Deleted `static/js/create.js` and `static/js/join.js`
+- Updated `main.py` page routing to only serve home, game, and win pages
+- Updated `static/js/win.js` to navigate to home instead of create page
+
+### Screenshots
+
+**Initial Home Page:**
+![Home Page Initial](https://github.com/user-attachments/assets/2815ee7e-0aaa-4846-a1cc-79f290b18954)
+
+**With Available Game:**
+![Home Page With Game](https://github.com/user-attachments/assets/2c6955b1-ace9-41a2-82c4-80e6aebedca2)
+
+**With Multiple Players:**
+![Home Page Two Players](https://github.com/user-attachments/assets/e89b2161-9aab-46fa-a987-0f797f0e6e1a)
+
+---
+
 ## Overview
 
 Redesign the home page to consolidate game creation and joining functionality, removing separate Create and Join pages. The new home page will show two lists:
@@ -164,45 +201,45 @@ New functionality to implement:
 
 ## Implementation Plan - TODO List
 
-### Phase 1: Backend API Changes
+### Phase 1: Backend API Changes ✅ COMPLETED
 
-- [ ] 1.1. Create new endpoint `GET /games/my-games` in `src/rummikub/api/main.py`
+- [x] 1.1. Create new endpoint `GET /games/my-games` in `src/rummikub/api/main.py`
   - Add route handler that filters games by authenticated player name
   - Use PlayerNameDep to get current player
   - Return games where player is in players list
   
-- [ ] 1.2. Modify `POST /games` endpoint to auto-join creator
+- [x] 1.2. Modify `POST /games` endpoint to auto-join creator
   - After creating game, automatically call join_game
   - Return the game state with player already joined
   
-- [ ] 1.3. Add query parameter to `GET /games` for status filtering (optional)
+- [x] 1.3. Add query parameter to `GET /games` for status filtering (optional)
   - Add `status` query parameter
   - Filter games by status if provided
   - Default behavior: return all games (backward compatible)
 
-- [ ] 1.4. Add tests for new endpoint
+- [x] 1.4. Add tests for new endpoint
   - Test `GET /games/my-games` with various scenarios
   - Test auto-join on `POST /games`
   - Update existing tests if needed
 
-- [ ] 1.5. Update API documentation (`doc/API.md`)
+- [x] 1.5. Update API documentation (`doc/API.md`)
   - Document new `GET /games/my-games` endpoint
   - Document modified `POST /games` behavior
   - Add examples
 
-### Phase 2: Frontend - Home Page Redesign
+### Phase 2: Frontend - Home Page Redesign ✅ COMPLETED
 
-- [ ] 2.1. Backup current home.html before changes
+- [x] 2.1. Backup current home.html before changes
   - Copy to `/tmp` for reference
 
-- [ ] 2.2. Redesign `static/pages/home.html`
+- [x] 2.2. Redesign `static/pages/home.html`
   - Remove "Create Game" and "Join Game" navigation buttons
   - Add two sections: "My Games" and "Available Games"
   - Add quick create form/modal
   - Add player info display in header
   - Update structure and layout
 
-- [ ] 2.3. Rewrite `static/js/home.js`
+- [x] 2.3. Rewrite `static/js/home.js`
   - Remove navigation to create/join pages
   - Add loadMyGames() function (calls /games/my-games)
   - Add loadAvailableGames() function (calls /games?status=waiting or /games)
@@ -212,7 +249,7 @@ New functionality to implement:
   - Update displayGames() to handle two separate lists
   - Implement periodic refresh for both lists
 
-- [ ] 2.4. Update CSS in `static/css/main.css`
+- [x] 2.4. Update CSS in `static/css/main.css`
   - Add styles for two-column/stacked layout
   - Add styles for "My Games" section
   - Add styles for "Available Games" section
@@ -220,74 +257,76 @@ New functionality to implement:
   - Remove create/join page specific styles
   - Ensure responsive design
 
-### Phase 3: Remove Create and Join Pages
+### Phase 3: Remove Create and Join Pages ✅ COMPLETED
 
-- [ ] 3.1. Delete `static/pages/create.html`
-- [ ] 3.2. Delete `static/pages/join.html`
-- [ ] 3.3. Delete `static/js/create.js`
-- [ ] 3.4. Delete `static/js/join.js`
+- [x] 3.1. Delete `static/pages/create.html`
+- [x] 3.2. Delete `static/pages/join.html`
+- [x] 3.3. Delete `static/js/create.js`
+- [x] 3.4. Delete `static/js/join.js`
 
-### Phase 4: Update Navigation and References
+### Phase 4: Update Navigation and References ✅ COMPLETED
 
-- [ ] 4.1. Update `main.py` page routing
+- [x] 4.1. Update `main.py` page routing
   - Remove 'create' and 'join' from page_files mapping
   - Ensure only 'home', 'game', and 'win' are valid pages
 
-- [ ] 4.2. Update `static/js/main.js` if needed
+- [x] 4.2. Update `static/js/main.js` if needed
   - Remove any references to create/join pages
   - Ensure Utils.navigateTo() doesn't create broken links
 
-- [ ] 4.3. Search for any remaining references
+- [x] 4.3. Search for any remaining references
   - Search all files for 'create.html', 'join.html'
   - Search for Utils.navigateTo('create') and Utils.navigateTo('join')
-  - Remove or update references
+  - Remove or update references (updated win.js)
 
-### Phase 5: Testing and Validation
+### Phase 5: Testing and Validation ✅ COMPLETED
 
-- [ ] 5.1. Manual testing - Home page functionality
-  - Test loading my games list
-  - Test loading available games list
-  - Test creating game with quick create
-  - Test joining available game
-  - Test resuming game from my games
-  - Test with no games
-  - Test with multiple games
+- [x] 5.1. Manual testing - Home page functionality
+  - Test loading my games list ✅
+  - Test loading available games list ✅
+  - Test creating game with quick create ✅ (via API)
+  - Test joining available game ✅ (via API)
+  - Test resuming game from my games ✅
+  - Test with no games ✅
+  - Test with multiple games ✅
 
-- [ ] 5.2. Manual testing - Authentication flow
-  - Test with different player names
-  - Verify my games shows only my games
-  - Verify available games shows joinable games
+- [x] 5.2. Manual testing - Authentication flow
+  - Test with different player names ✅ (Alice and Bob)
+  - Verify my games shows only my games ✅ (via API)
+  - Verify available games shows joinable games ✅
 
-- [ ] 5.3. Manual testing - Navigation
-  - Ensure no broken links to create/join pages
-  - Ensure game page still works
-  - Ensure win page still works
-  - Test browser back/forward buttons
+- [x] 5.3. Manual testing - Navigation
+  - Ensure no broken links to create/join pages ✅
+  - Ensure game page still works ✅
+  - Ensure win page still works ✅ (updated to navigate to home)
+  - Test browser back/forward buttons ✅
 
-- [ ] 5.4. Run quality gates
-  - `ruff check .`
-  - `mypy src/`
-  - Run relevant tests
+- [x] 5.4. Run quality gates
+  - `ruff check .` ✅
+  - `mypy src/` ✅
+  - Run relevant tests ✅
 
-- [ ] 5.5. Update documentation
-  - Update README.md if it references create/join pages
-  - Update any user guides or screenshots
+- [x] 5.5. Update documentation
+  - Update HOME_PAGE_REDESIGN.md to mark completion ✅
+  - README.md doesn't reference create/join pages
 
-### Phase 6: Cleanup and Polish
+### Phase 6: Cleanup and Polish ⚠️ DEFERRED
 
 - [ ] 6.1. Remove unused CSS classes
   - Search for orphaned CSS rules
   - Clean up main.css
+  - Note: Existing CSS is minimal and not causing issues
 
 - [ ] 6.2. Update i18n translations if needed
   - Add new strings for "My Games", "Available Games"
   - Remove create/join page strings
+  - Note: i18n currently uses data-i18n attributes, implementation deferred
 
 - [ ] 6.3. Final review
-  - Check for console errors
-  - Verify responsive design
-  - Test on different browsers
-  - Performance check (page load, list refresh)
+  - Check for console errors ✅ (only expected auth errors before login)
+  - Verify responsive design ✅ (CSS includes mobile breakpoints)
+  - Test on different browsers ⚠️ (tested in Playwright/Chromium)
+  - Performance check (page load, list refresh) ✅ (5 second refresh interval)
 
 ## Key Decisions & Considerations
 

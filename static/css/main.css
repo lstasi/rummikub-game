@@ -395,3 +395,145 @@ header h1 {
         margin-bottom: 20px;
     }
 }
+
+/* Home page redesign - new styles */
+
+/* Home page header with player info */
+.home-header {
+    text-align: center;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+.player-info {
+    color: #ecf0f1;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.player-info strong {
+    color: #fff;
+}
+
+/* Quick create section */
+.quick-create-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.quick-create-section h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+.quick-create-form {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.quick-create-form label {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.num-players-select {
+    padding: 8px 16px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.num-players-select:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+/* Two-column games container */
+.games-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.my-games-section,
+.available-games-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.my-games-section h2,
+.available-games-section h2 {
+    color: #ecf0f1;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+    text-align: center;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 10px;
+}
+
+/* Update games-list for single column within each section */
+.my-games-section .games-list,
+.available-games-section .games-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Differentiate card styles */
+.my-game-card {
+    border-left: 4px solid #3498db;
+}
+
+.available-game-card {
+    border-left: 4px solid #f39c12;
+}
+
+/* Loading and error states */
+.loading {
+    text-align: center;
+    color: #ecf0f1;
+    padding: 40px;
+    font-size: 16px;
+}
+
+.error {
+    background-color: #e74c3c;
+    color: white;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+/* Responsive design for home page */
+@media (max-width: 1024px) {
+    .games-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-create-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .quick-create-form label {
+        text-align: center;
+    }
+    
+    .num-players-select {
+        width: 100%;
+    }
+}
