@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // UI elements
+    const gameTitle = document.getElementById('game-title');
     const gameStatus = document.getElementById('game-status');
     const playersList = document.getElementById('players-list');
     const board = document.getElementById('board');
@@ -203,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateUI() {
         if (!serverGameState) return;
         
+        updateGameTitle();
         updateGameStatus();
         updatePlayersList();
         updateBoard();
@@ -216,6 +218,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 game_id: gameId, 
                 winner: serverGameState.winner_player_id 
             });
+        }
+    }
+    
+    function updateGameTitle() {
+        if (serverGameState && serverGameState.game_name) {
+            gameTitle.textContent = serverGameState.game_name;
         }
     }
     

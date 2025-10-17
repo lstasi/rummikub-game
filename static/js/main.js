@@ -92,6 +92,7 @@ const API = {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'include',  // Include credentials (cookies, Basic Auth) in requests
             ...options
         };
         

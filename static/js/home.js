@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         card.innerHTML = `
-            <h3>Game ${Utils.shortId(game.game_id)}</h3>
+            <h3>${game.game_name}</h3>
             <p><span class="game-status ${statusClass}">${game.status.replace('_', ' ')}</span></p>
             <p>Players: ${game.players.length}/${game.num_players}</p>
             ${playersSection}
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         card.innerHTML = `
-            <h3>Game ${Utils.shortId(game.game_id)}</h3>
+            <h3>${game.game_name}</h3>
             <p><span class="game-status ${statusClass}">${game.status.replace('_', ' ')}</span></p>
             <p>Players: ${game.players.length}/${game.num_players}</p>
             ${playersSection}
