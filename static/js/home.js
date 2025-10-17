@@ -342,7 +342,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             Utils.showError(error, errorMessage);
-            setTimeout(() => Utils.hideError(error), 5000);
         }
     }
     
