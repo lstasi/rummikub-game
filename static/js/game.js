@@ -188,6 +188,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!wasMyTurn && isCurrentPlayer(playerId)) {
                         resetLocalState();
                     }
+                    // If it's not my turn, update the board to show the server state
+                    else if (!isCurrentPlayer(playerId)) {
+                        localBoardState = {
+                            melds: serverGameState ? [...serverGameState.board.melds] : []
+                        };
+                    }
                     
                     updateUI();
                 } catch (error) {
