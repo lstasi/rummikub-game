@@ -396,11 +396,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return false;
         });
         
+        // Check if player has made changes to the board (put tiles on board)
+        const hasBoardChanges = !arraysEqual(localBoardState.melds, initialTurnBoardState?.melds || []);
+        
         pushToBoardBtn.disabled = !isMyTurn || !hasSelectedTiles;
         removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds || !canRemoveFromBoard;
         breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasBreakableMelds;
         groupMeldBtn.disabled = !isMyTurn || !canGroupMelds;
-        drawTileBtn.disabled = !isMyTurn;
+        drawTileBtn.disabled = !isMyTurn || hasBoardChanges;
         endTurnBtn.disabled = !isMyTurn;
     }
     
