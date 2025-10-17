@@ -223,7 +223,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     function updateGameTitle() {
         if (serverGameState && serverGameState.game_name) {
-            gameTitle.textContent = serverGameState.game_name;
+            // textContent automatically escapes HTML, providing XSS protection
+            // Limit length to prevent UI issues with extremely long names
+            const gameName = serverGameState.game_name.substring(0, 100);
+            gameTitle.textContent = gameName;
         }
     }
     
