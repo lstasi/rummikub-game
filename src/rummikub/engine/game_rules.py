@@ -104,9 +104,17 @@ class GameRules:
         for i, meld in enumerate(melds):
             logger.debug(f"Validating meld {i}: {meld.kind.value} with {len(meld.tiles)} tiles")
             
+            # First check basic size constraints
             if not GameRules.validate_meld_structure(meld):
                 logger.error(f"Meld structure validation failed for meld {i}: {meld}")
                 raise InvalidBoardStateError(f"Invalid meld structure: {meld}")
+            
+            # Then validate the actual meld contents (numbers, colors, sequence)
+            try:
+                meld.validate()
+            except Exception as e:
+                logger.error(f"Meld content validation failed for meld {i}: {e}")
+                raise InvalidBoardStateError(f"Invalid meld: {e}")
                 
         logger.debug("All meld structures validated successfully")
     

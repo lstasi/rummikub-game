@@ -383,7 +383,8 @@ class TestAPIEndpointsIntegration:
         state_response = self.client.get(f"/games/{game_id}/players/{alice_id}")
         alice_tiles = state_response.json()["players"][0]["rack"]["tiles"]
         
-        # Try to play the first 3 tiles as a group (may not be valid, but tests the endpoint)
+        # Try to play the first 3 tiles as a group
+        # Note: Random tiles are unlikely to form a valid group, so we expect this to fail
         play_request = {
             "melds": [
                 {
@@ -399,10 +400,11 @@ class TestAPIEndpointsIntegration:
             json=play_request
         )
         
-        # This might fail due to invalid meld, but should return proper error format
+        # Random tiles will almost certainly not form a valid meld
+        # This test just verifies the endpoint returns proper error format
+        # Should be a domain validation error (meld validation, initial meld, or tile ownership)
+        assert response.status_code in [422, 400, 200]  # 200 if we get lucky with valid tiles
         if response.status_code != 200:
-            # Should be a domain validation error
-            assert response.status_code in [422, 400]
             data = response.json()
             assert "error" in data
             assert "code" in data["error"]

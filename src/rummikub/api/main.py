@@ -15,7 +15,8 @@ from ..models.exceptions import (
     NotPlayersTurnError,
     PoolEmptyError,
     PlayerNotInGameError,
-    GameStateError
+    GameStateError,
+    InvalidBoardStateError
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 
@@ -59,6 +60,7 @@ app.add_middleware(
 app.add_exception_handler(GameNotFoundError, handle_domain_exceptions)
 app.add_exception_handler(ConcurrentModificationError, handle_domain_exceptions)
 app.add_exception_handler(InvalidMeldError, handle_domain_exceptions)
+app.add_exception_handler(InvalidBoardStateError, handle_domain_exceptions)
 app.add_exception_handler(InitialMeldNotMetError, handle_domain_exceptions)
 app.add_exception_handler(TileNotOwnedError, handle_domain_exceptions)
 app.add_exception_handler(GameNotStartedError, handle_domain_exceptions)

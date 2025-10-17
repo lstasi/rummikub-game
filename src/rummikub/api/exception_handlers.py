@@ -12,7 +12,8 @@ from ..models.exceptions import (
     NotPlayersTurnError,
     PoolEmptyError,
     PlayerNotInGameError,
-    GameStateError
+    GameStateError,
+    InvalidBoardStateError
 )
 from ..service.exceptions import GameNotFoundError, ConcurrentModificationError
 from .models import ErrorResponse, ErrorDetail
@@ -88,6 +89,13 @@ async def handle_domain_exceptions(request: Request, exc: Exception) -> JSONResp
     elif isinstance(exc, InvalidMeldError):
         return create_error_response(
             code="INVALID_MELD",
+            message=str(exc),
+            status_code=422
+        )
+    
+    elif isinstance(exc, InvalidBoardStateError):
+        return create_error_response(
+            code="INVALID_BOARD_STATE",
             message=str(exc),
             status_code=422
         )
