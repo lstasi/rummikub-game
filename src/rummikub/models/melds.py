@@ -78,6 +78,20 @@ class Meld:
         elif self.kind == MeldKind.RUN and len(self.tiles) < 3:
             raise InvalidMeldError("Run must have at least 3 tiles", "size")
         
+        # For groups, sort tiles in deterministic order (Black-Red-Blue-Orange, jokers last)
+        # This ensures frontend doesn't need to worry about joker positioning
+        if self.kind == MeldKind.GROUP:
+            color_order = {Color.BLACK: 0, Color.RED: 1, Color.BLUE: 2, Color.ORANGE: 3}
+            
+            def group_sort_key(tile_id: str) -> int:
+                if TileUtils.is_joker(tile_id):
+                    return 4  # Jokers go last
+                else:
+                    color = TileUtils.get_color(tile_id)
+                    return color_order[color]
+            
+            self.tiles = sorted(self.tiles, key=group_sort_key)
+        
         # Generate deterministic ID
         self.id = _generate_meld_id(self.kind, self.tiles)
     
