@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add click handler for tiles in rack and on board
         tile.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent meld click from firing
-            toggleTileSelection(tileId, meldId);
+            toggleTileSelection(tileId);
         });
         
         return tile;
@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { display: '?', color: 'black' };
     }
     
-    function toggleTileSelection(tileId, meldId = null) {
+    function toggleTileSelection(tileId) {
         if (selectedTiles.has(tileId)) {
             selectedTiles.delete(tileId);
         } else {
@@ -495,8 +495,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             !meldsToRemove.has(meld.id)
         );
         
-        
-        selectedMelds.clear();
+        // Clear selections
+        selectedTiles.clear();
         updateUI();
     }
     
@@ -574,15 +574,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Create new meld with selected tiles
         const newMeld = {
-            id: `meld-${Date.now()}`,
+            id: `meld-${Date.now()}-${Math.random()}`,
             kind: meldKind,
             tiles: sortedTiles
         };
         
         localBoardState.melds.push(newMeld);
         
+        // Clear selections
         selectedTiles.clear();
-        selectedMelds.clear();
         updateUI();
     }
     
