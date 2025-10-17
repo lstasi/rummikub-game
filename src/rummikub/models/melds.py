@@ -185,17 +185,30 @@ class Meld:
         # We know all numbered tiles have the same color from validation  
         run_color = TileUtils.get_color(numbered[0][1])
         
-        # Get numbered positions and their values
-        numbered_positions = [(pos, TileUtils.get_number(tid)) for pos, tid in numbered]
+        # Get numbered positions and their values, sorted by position
+        numbered_positions = sorted([(pos, TileUtils.get_number(tid)) for pos, tid in numbered])
         
-        # Determine the full sequence based on positions and numbers
+        # First, validate that numbered tiles form a valid sequence considering their positions
+        # The gap between consecutive numbered tiles must match their position difference
+        for i in range(len(numbered_positions) - 1):
+            pos1, num1 = numbered_positions[i]
+            pos2, num2 = numbered_positions[i + 1]
+            
+            position_gap = pos2 - pos1  # How many positions apart they are
+            number_gap = num2 - num1    # How many numbers apart they are
+            
+            # The number gap should equal the position gap for a valid run
+            if number_gap != position_gap:
+                raise InvalidMeldError("Run numbers are not consecutive", "non-consecutive")
+        
+        # Determine the full sequence based on the first numbered tile
         start_pos = numbered_positions[0][0]
         start_num = numbered_positions[0][1]
         
         # Calculate what the starting number should be based on the first numbered tile's position
         expected_start = start_num - start_pos
         
-        # Validate that all numbered tiles fit the expected sequence
+        # Validate all numbered tiles against the expected sequence
         for pos, num in numbered_positions:
             expected_num = expected_start + pos
             if num != expected_num:
