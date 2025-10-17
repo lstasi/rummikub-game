@@ -183,9 +183,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const response = await API.getGameState(gameId, playerId);
                     const wasMyTurn = isCurrentPlayer(playerId);
                     serverGameState = response;
+                    const isMyTurn = isCurrentPlayer(playerId);
                     
-                    // If it wasn't my turn before but is now, reset local state
-                    if (!wasMyTurn && isCurrentPlayer(playerId)) {
+                    // Reset local state when turn changes
+                    if (wasMyTurn !== isMyTurn) {
                         resetLocalState();
                     }
                     
@@ -266,8 +267,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateBoard() {
         board.innerHTML = '';
         
-        // Use local board state (shows pending changes)
-        if (!localBoardState.melds || localBoardState.melds.length === 0) {
+        // Use server board state when it's not our turn, local state when it is our turn
+        const boardStateToDisplay = isCurrentPlayer(playerId) ? localBoardState : serverGameState.board;
+        
+        if (!boardStateToDisplay.melds || boardStateToDisplay.melds.length === 0) {
             const noMeldsDiv = document.createElement('div');
             noMeldsDiv.id = 'no-melds';
             noMeldsDiv.className = 'no-melds';
@@ -276,7 +279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        localBoardState.melds.forEach(meld => {
+        boardStateToDisplay.melds.forEach(meld => {
             const meldElement = createMeldElement(meld);
             board.appendChild(meldElement);
         });
