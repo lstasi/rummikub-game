@@ -98,19 +98,58 @@ const translations = {
 const I18n = {
     currentLang: 'en',
     
-    // Initialize i18n - detect language from URL parameter
+    // Initialize i18n - detect language from browser, with URL parameter fallback
     init() {
+        // First, check if language is specified in URL parameter (highest priority)
         const params = new URLSearchParams(window.location.search);
-        const lang = params.get('lang');
+        const urlLang = params.get('lang');
         
-        // Validate language parameter
-        if (lang && translations[lang]) {
-            this.currentLang = lang;
+        if (urlLang && translations[urlLang]) {
+            this.currentLang = urlLang;
         } else {
-            this.currentLang = 'en';
+            // Detect language from browser
+            const browserLang = this.detectBrowserLanguage();
+            if (browserLang && translations[browserLang]) {
+                this.currentLang = browserLang;
+            } else {
+                this.currentLang = 'en'; // Default fallback
+            }
         }
         
+        // Update HTML lang attribute to reflect detected language
+        document.documentElement.lang = this.currentLang;
+        
         this.applyTranslations();
+    },
+    
+    // Detect browser's preferred language
+    detectBrowserLanguage() {
+        // Get browser language (e.g., "en-US", "pt-BR", "es-ES")
+        const browserLang = navigator.language || navigator.userLanguage;
+        
+        if (!browserLang) {
+            return null;
+        }
+        
+        // Extract primary language code (e.g., "en" from "en-US", "pt" from "pt-BR")
+        const primaryLang = browserLang.split('-')[0].toLowerCase();
+        
+        // Check if we support this language
+        if (translations[primaryLang]) {
+            return primaryLang;
+        }
+        
+        // Also check navigator.languages for fallback options
+        if (navigator.languages && navigator.languages.length > 0) {
+            for (const lang of navigator.languages) {
+                const primary = lang.split('-')[0].toLowerCase();
+                if (translations[primary]) {
+                    return primary;
+                }
+            }
+        }
+        
+        return null;
     },
     
     // Get translation for a key
