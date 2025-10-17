@@ -289,6 +289,41 @@ header h1 {
     border: 1px solid #ef5350;
     margin: 20px 0;
     text-align: center;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.error-message {
+    flex: 1;
+}
+
+.error-close {
+    background: none;
+    border: none;
+    color: #c62828;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+}
+
+.error-close:hover {
+    background-color: rgba(198, 40, 40, 0.1);
+}
+
+.error-close:active {
+    background-color: rgba(198, 40, 40, 0.2);
 }
 
 /* Winner page styles */
