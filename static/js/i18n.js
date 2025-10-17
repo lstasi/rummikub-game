@@ -125,7 +125,7 @@ const I18n = {
     // Detect browser's preferred language
     detectBrowserLanguage() {
         // Get browser language (e.g., "en-US", "pt-BR", "es-ES")
-        const browserLang = navigator.language || navigator.userLanguage;
+        const browserLang = navigator.language;
         
         if (!browserLang) {
             return null;
@@ -140,7 +140,7 @@ const I18n = {
         }
         
         // Also check navigator.languages for fallback options
-        if (navigator.languages && navigator.languages.length > 0) {
+        if (navigator.languages?.length > 0) {
             for (const lang of navigator.languages) {
                 const primary = lang.split('-')[0].toLowerCase();
                 if (translations[primary]) {
