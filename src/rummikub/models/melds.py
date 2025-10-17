@@ -14,6 +14,10 @@ class MeldKind(str, Enum):
     RUN = "run"
 
 
+# Color order for sorting tiles in groups: Black, Red, Blue, Orange
+_COLOR_ORDER = {Color.BLACK: 0, Color.RED: 1, Color.BLUE: 2, Color.ORANGE: 3}
+
+
 def _generate_meld_id(kind: MeldKind, tiles: List[str]) -> str:
     """Generate a deterministic meld ID based on tile composition.
     
@@ -29,16 +33,13 @@ def _generate_meld_id(kind: MeldKind, tiles: List[str]) -> str:
     """
     if kind == MeldKind.GROUP:
         # For groups, sort by color order: black, red, blue, orange
-        # Define color order for sorting
-        color_order = {Color.BLACK: 0, Color.RED: 1, Color.BLUE: 2, Color.ORANGE: 3}
-        
         def group_sort_key(tile_id: str) -> int:
             if TileUtils.is_joker(tile_id):
                 # Jokers go last in groups (they'll be assigned remaining colors)
                 return 4
             else:
                 color = TileUtils.get_color(tile_id)
-                return color_order[color]
+                return _COLOR_ORDER[color]
         
         sorted_tiles = sorted(tiles, key=group_sort_key)
         
@@ -77,6 +78,18 @@ class Meld:
             raise InvalidMeldError("Group must have 3-4 tiles", "size")
         elif self.kind == MeldKind.RUN and len(self.tiles) < 3:
             raise InvalidMeldError("Run must have at least 3 tiles", "size")
+        
+        # For groups, sort tiles in deterministic order (Black-Red-Blue-Orange, jokers last)
+        # This ensures frontend doesn't need to worry about joker positioning
+        if self.kind == MeldKind.GROUP:
+            def group_sort_key(tile_id: str) -> int:
+                if TileUtils.is_joker(tile_id):
+                    return 4  # Jokers go last
+                else:
+                    color = TileUtils.get_color(tile_id)
+                    return _COLOR_ORDER[color]
+            
+            self.tiles = sorted(self.tiles, key=group_sort_key)
         
         # Generate deterministic ID
         self.id = _generate_meld_id(self.kind, self.tiles)

@@ -8,7 +8,7 @@ class TestDeterministicMeldIds:
     """Test deterministic meld ID generation system."""
     
     def test_group_deterministic_id_same_tiles_different_order(self):
-        """Test that groups with same tiles in different order get same ID."""
+        """Test that groups with same tiles in different order get same ID and sorted tiles."""
         tiles1 = ['7ra', '7ba', '7ka']  # Red, Blue, Black
         tiles2 = ['7ka', '7ra', '7ba']  # Black, Red, Blue (different order)
         tiles3 = ['7ba', '7ka', '7ra']  # Blue, Black, Red (different order)
@@ -22,6 +22,12 @@ class TestDeterministicMeldIds:
         assert group1.id == expected_id
         assert group2.id == expected_id
         assert group3.id == expected_id
+        
+        # All should have tiles sorted in the same order
+        expected_tiles = ['7ka', '7ra', '7ba']
+        assert group1.tiles == expected_tiles
+        assert group2.tiles == expected_tiles
+        assert group3.tiles == expected_tiles
     
     def test_group_color_sorting_order(self):
         """Test that groups sort colors in Black-Red-Blue-Orange order."""
@@ -56,6 +62,12 @@ class TestDeterministicMeldIds:
         assert group1.id == expected_id
         assert group2.id == expected_id
         assert group3.id == expected_id
+        
+        # All should have tiles sorted in the same order
+        expected_tiles = ['7ra', '7ba', 'ja']
+        assert group1.tiles == expected_tiles
+        assert group2.tiles == expected_tiles
+        assert group3.tiles == expected_tiles
     
     def test_run_deterministic_id_preserves_order(self):
         """Test that runs preserve their sequence order in ID."""
@@ -204,6 +216,65 @@ class TestMeldValidationWithNewSystem:
 
 class TestMeldIdConsistency:
     """Test that meld IDs remain consistent across operations."""
+    
+    def test_group_tiles_automatically_sorted(self):
+        """Test that group tiles are automatically sorted regardless of input order.
+        
+        This is important for the frontend: it can send tiles in any order,
+        and the backend will automatically sort them in a deterministic way:
+        - Numbered tiles sorted by color: Black, Red, Blue, Orange
+        - Jokers come after all numbered tiles
+        
+        This ensures:
+        1. Frontend doesn't need to worry about joker positioning
+        2. All responses contain consistently ordered tiles
+        3. Meld IDs are deterministic for equivalent melds
+        """
+        # Test 1: Joker in different positions
+        tiles_joker_first = ['ja', '7ra', '7ba']
+        tiles_joker_middle = ['7ra', 'ja', '7ba']
+        tiles_joker_last = ['7ra', '7ba', 'ja']
+        
+        group1 = Meld(kind=MeldKind.GROUP, tiles=tiles_joker_first)
+        group2 = Meld(kind=MeldKind.GROUP, tiles=tiles_joker_middle)
+        group3 = Meld(kind=MeldKind.GROUP, tiles=tiles_joker_last)
+        
+        expected_sorted = ['7ra', '7ba', 'ja']
+        assert group1.tiles == expected_sorted
+        assert group2.tiles == expected_sorted
+        assert group3.tiles == expected_sorted
+        
+        # Test 2: All colors in different orders
+        tiles_order1 = ['8oa', '8ba', '8ka', '8ra']  # Orange, Blue, Black, Red
+        tiles_order2 = ['8ra', '8oa', '8ka', '8ba']  # Red, Orange, Black, Blue
+        
+        group4 = Meld(kind=MeldKind.GROUP, tiles=tiles_order1)
+        group5 = Meld(kind=MeldKind.GROUP, tiles=tiles_order2)
+        
+        expected_sorted_4colors = ['8ka', '8ra', '8ba', '8oa']  # Black, Red, Blue, Orange
+        assert group4.tiles == expected_sorted_4colors
+        assert group5.tiles == expected_sorted_4colors
+        
+        # Test 3: Multiple jokers
+        tiles_multi_joker = ['jb', '9ba', 'ja']
+        group6 = Meld(kind=MeldKind.GROUP, tiles=tiles_multi_joker)
+        
+        expected_sorted_multi = ['9ba', 'jb', 'ja']  # Blue first, then jokers
+        assert group6.tiles == expected_sorted_multi
+    
+    def test_run_tiles_preserve_order(self):
+        """Test that run tiles preserve their original order (position matters)."""
+        tiles = ['5ra', '6ra', '7ra']
+        run = Meld(kind=MeldKind.RUN, tiles=tiles)
+        
+        # Runs should preserve order
+        assert run.tiles == tiles
+        
+        # Test with joker in middle
+        tiles_with_joker = ['5ra', 'ja', '7ra']
+        run_with_joker = Meld(kind=MeldKind.RUN, tiles=tiles_with_joker)
+        
+        assert run_with_joker.tiles == tiles_with_joker
     
     def test_id_unchanged_after_validation(self):
         """Test that meld ID doesn't change after validation."""
