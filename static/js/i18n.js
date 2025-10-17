@@ -125,6 +125,8 @@ const I18n = {
     // Detect browser's preferred language
     detectBrowserLanguage() {
         // Get browser language (e.g., "en-US", "pt-BR", "es-ES")
+        // Note: navigator.userLanguage (IE-specific) is intentionally not used
+        // as Internet Explorer is no longer supported (retired June 2022)
         const browserLang = navigator.language;
         
         if (!browserLang) {
