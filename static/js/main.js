@@ -168,6 +168,12 @@ const API = {
             method: 'POST',
             body: {}
         });
+    },
+    
+    async deleteGame(gameId) {
+        return this.request(`/games/${gameId}`, {
+            method: 'DELETE'
+        });
     }
 };
 

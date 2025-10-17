@@ -953,3 +953,60 @@ class TestNewAPIEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert len(data["games"]) == 2  # Returns all games
+    def test_delete_game_success(self):
+        """Test DELETE /games/{game_id} endpoint successfully deletes a game."""
+        import base64
+        
+        # Create a game first
+        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=headers)
+        game_id = create_response.json()["game_id"]
+        
+        # Delete the game (no auth required per requirements)
+        delete_response = self.client.delete(f"/games/{game_id}")
+        
+        assert delete_response.status_code == 200
+        data = delete_response.json()
+        assert data["status"] == "deleted"
+        assert data["game_id"] == game_id
+        
+        # Verify game is actually deleted by trying to get it
+        get_response = self.client.get(f"/games/{game_id}/players/some-player-id")
+        assert get_response.status_code == 404
+    
+    def test_delete_game_not_found(self):
+        """Test DELETE /games/{game_id} endpoint with non-existent game."""
+        # Try to delete non-existent game
+        response = self.client.delete("/games/nonexistent-game-id")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert data["error"]["code"] == "GAME_NOT_FOUND"
+    
+    def test_delete_game_in_progress(self):
+        """Test DELETE /games/{game_id} endpoint deletes game even if in progress."""
+        import base64
+        
+        # Create a game with 2 players
+        credentials = base64.b64encode(b"Alice:password").decode("utf-8")
+        headers = {"Authorization": f"Basic {credentials}"}
+        create_response = self.client.post("/games", json={"num_players": 2}, headers=headers)
+        game_id = create_response.json()["game_id"]
+        
+        # Join second player to start the game
+        bob_credentials = base64.b64encode(b"Bob:password").decode("utf-8")
+        bob_headers = {"Authorization": f"Basic {bob_credentials}"}
+        self.client.post(f"/games/{game_id}/players", json={}, headers=bob_headers)
+        
+        # Delete the game even though it's in progress
+        delete_response = self.client.delete(f"/games/{game_id}")
+        
+        assert delete_response.status_code == 200
+        data = delete_response.json()
+        assert data["status"] == "deleted"
+        assert data["game_id"] == game_id
+        
+        # Verify game is deleted
+        get_response = self.client.get(f"/games/{game_id}/players/some-player-id")
+        assert get_response.status_code == 404

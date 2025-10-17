@@ -348,6 +348,26 @@ async def draw_tile(
         raise
 
 
+@app.delete("/games/{game_id}")
+async def delete_game(
+    game_id: str,
+    game_service: GameServiceDep
+) -> dict:
+    """Delete a game by game ID.
+    
+    No authentication required as per requirements.
+    """
+    logger.debug(f"Attempting to delete game {game_id}")
+    
+    try:
+        game_service.delete_game(game_id)
+        logger.debug(f"Successfully deleted game {game_id}")
+        return {"status": "deleted", "game_id": game_id}
+    except Exception as e:
+        logger.error(f"Failed to delete game {game_id}: {e}")
+        raise
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

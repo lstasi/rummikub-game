@@ -319,6 +319,25 @@ class GameService:
                 return player
         return None
     
+    def delete_game(self, game_id: str) -> None:
+        """Delete a game from Redis.
+        
+        Args:
+            game_id: ID of the game to delete
+            
+        Raises:
+            GameNotFoundError: If game ID not found
+        """
+        # Acquire lock before deleting
+        with self._game_lock(game_id):
+            # Check if game exists
+            key = f"rummikub:games:{game_id}"
+            if not self.redis.exists(key):
+                raise GameNotFoundError(f"Game {game_id} not found")
+            
+            # Delete the game
+            self.redis.delete(key)
+    
     def _game_lock(self, game_id: str):
         """Context manager for acquiring game lock.
         
