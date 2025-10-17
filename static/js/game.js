@@ -588,22 +588,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function sortTilesForRun(tiles) {
-        // Sort tiles by their number value
-        // For runs, we need to sort numbered tiles and keep jokers in relative positions
-        // The backend will handle joker validation and assignment
+        // Sort tiles by their number value and intelligently place jokers in gaps
         const numberedTiles = tiles.filter(t => !t.startsWith('j'));
         const jokerTiles = tiles.filter(t => t.startsWith('j'));
         
         // Sort numbered tiles by number
-        numberedTiles.sort((a, b) => {
-            const aNum = parseInt(a.match(/^(\d+)/)?.[1] || '0');
-            const bNum = parseInt(b.match(/^(\d+)/)?.[1] || '0');
-            return aNum - bNum;
-        });
+        const sortedNumbered = numberedTiles.map(t => {
+            const num = parseInt(t.match(/^(\d+)/)?.[1] || '0');
+            return { tile: t, num: num };
+        }).sort((a, b) => a.num - b.num);
         
-        // For now, append jokers at the end
-        // The backend validation will properly handle joker positions
-        return [...numberedTiles, ...jokerTiles];
+        if (sortedNumbered.length === 0) {
+            // Only jokers, can't sort properly
+            return jokerTiles;
+        }
+        
+        // Build the sequence with jokers filling gaps
+        const result = [];
+        let jokerIndex = 0;
+        
+        // Determine if we need jokers at the start
+        // (if first numbered tile is > 1 and we have jokers, they might go at start)
+        const firstNum = sortedNumbered[0].num;
+        const expectedStart = Math.max(1, firstNum - jokerTiles.length);
+        
+        // Add jokers before first numbered tile if needed
+        for (let i = expectedStart; i < firstNum && jokerIndex < jokerTiles.length; i++) {
+            result.push(jokerTiles[jokerIndex++]);
+        }
+        
+        // Add numbered tiles and fill gaps with jokers
+        for (let i = 0; i < sortedNumbered.length; i++) {
+            result.push(sortedNumbered[i].tile);
+            
+            // Check if there's a gap to the next numbered tile
+            if (i < sortedNumbered.length - 1) {
+                const currentNum = sortedNumbered[i].num;
+                const nextNum = sortedNumbered[i + 1].num;
+                const gap = nextNum - currentNum - 1;
+                
+                // Fill gap with jokers
+                for (let j = 0; j < gap && jokerIndex < jokerTiles.length; j++) {
+                    result.push(jokerTiles[jokerIndex++]);
+                }
+            }
+        }
+        
+        // Add remaining jokers at the end
+        while (jokerIndex < jokerTiles.length) {
+            result.push(jokerTiles[jokerIndex++]);
+        }
+        
+        return result;
     }
     
     async function drawTile() {
