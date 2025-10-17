@@ -299,7 +299,7 @@ async def play_tiles(
 ) -> GameStateResponse:
     """Execute a play tiles action."""
     
-    logger.info(f"Player {player_id} attempting to play tiles in game {game_id} with {len(request.melds)} melds")
+    logger.debug(f"Player {player_id} attempting to play tiles in game {game_id} with {len(request.melds)} melds")
     
     # Convert request to domain action
     from ..models.melds import Meld, MeldKind
@@ -317,7 +317,7 @@ async def play_tiles(
     # Execute action
     try:
         game_state = game_service.execute_turn(game_id, player_id, action)
-        logger.info(f"Play tiles action successful for player {player_id} in game {game_id}")
+        logger.debug(f"Play tiles action successful for player {player_id} in game {game_id}")
         return _convert_game_state_to_response(game_state, player_id)
     except Exception as e:
         logger.error(f"Play tiles action failed for player {player_id} in game {game_id}: {e}")
@@ -333,7 +333,7 @@ async def draw_tile(
 ) -> GameStateResponse:
     """Draw a tile from the pool."""
     
-    logger.info(f"Player {player_id} attempting to draw tile in game {game_id}")
+    logger.debug(f"Player {player_id} attempting to draw tile in game {game_id}")
     
     # Create draw action
     action = DrawAction()
@@ -341,7 +341,7 @@ async def draw_tile(
     # Execute action
     try:
         game_state = game_service.execute_turn(game_id, player_id, action)
-        logger.info(f"Draw tile action successful for player {player_id} in game {game_id}")
+        logger.debug(f"Draw tile action successful for player {player_id} in game {game_id}")
         return _convert_game_state_to_response(game_state, player_id)
     except Exception as e:
         logger.error(f"Draw tile action failed for player {player_id} in game {game_id}: {e}")

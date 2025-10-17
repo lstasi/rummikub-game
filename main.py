@@ -195,7 +195,7 @@ Examples:
             port=args.port,
             reload=True,
             log_level=args.log_level,
-            access_log=True,
+            access_log=False,  # Disable access logs to reduce polling noise
             reload_dirs=["src", "static"],
         )
     else:
@@ -207,7 +207,7 @@ Examples:
             port=args.port,
             reload=False,
             log_level=args.log_level,
-            access_log=True,
+            access_log=False,  # Disable access logs to reduce polling noise
         )
     
     return 0
