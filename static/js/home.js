@@ -229,9 +229,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             Utils.showError(error, errorMessage);
-            
-            // Hide error after 5 seconds
-            setTimeout(() => Utils.hideError(error), 5000);
         }
     }
     
@@ -289,9 +286,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             Utils.showError(error, errorMessage);
-            
-            // Hide error after 5 seconds
-            setTimeout(() => Utils.hideError(error), 5000);
         }
     }
     
@@ -348,7 +342,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             Utils.showError(error, errorMessage);
-            setTimeout(() => Utils.hideError(error), 5000);
         }
     }
     
