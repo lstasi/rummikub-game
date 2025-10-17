@@ -135,8 +135,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${playersSection}
             ${turnInfo}
             <p>Created: ${Utils.formatTime(game.created_at)}</p>
-            <div style="margin-top: 15px;">
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
                 ${actionButton}
+                <button class="btn btn-danger delete-btn" data-game-id="${game.game_id}">Delete</button>
             </div>
         `;
         
@@ -146,6 +147,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             resumeBtn.addEventListener('click', () => {
                 const gameId = resumeBtn.dataset.gameId;
                 resumeGame(gameId);
+            });
+        }
+        
+        // Add delete functionality
+        const deleteBtn = card.querySelector('.delete-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                const gameId = deleteBtn.dataset.gameId;
+                deleteGameConfirm(gameId);
             });
         }
         
@@ -348,6 +358,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             Utils.showError(error, errorMessage);
+            setTimeout(() => Utils.hideError(error), 5000);
+        }
+    }
+    
+    // Delete a game with confirmation
+    async function deleteGameConfirm(gameId) {
+        if (!confirm('Are you sure you want to delete this game? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            Utils.hideError(error);
+            
+            // Delete the game
+            await API.deleteGame(gameId);
+            
+            // If this was the current game, clear it from localStorage
+            GameState.load();
+            if (GameState.gameId === gameId) {
+                GameState.clear();
+            }
+            
+            // Refresh both game lists immediately
+            await loadAllGames();
+            
+        } catch (err) {
+            console.error('Failed to delete game:', err);
+            
+            let errorMessage = 'Failed to delete game. Please try again.';
+            if (err.message.includes('not found')) {
+                errorMessage = 'Game not found. It may have already been deleted.';
+                // Refresh the lists since the game is gone
+                await loadAllGames();
+            }
+            
+            Utils.showError(error, errorMessage);
+            
+            // Hide error after 5 seconds
             setTimeout(() => Utils.hideError(error), 5000);
         }
     }
