@@ -230,8 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     function updatePoolTilesCount() {
         const count = serverGameState.pool_size || 0;
-        const tilesText = count === 1 ? getTilesRemainingText(count, true) : getTilesRemainingText(count, false);
-        poolTilesCount.textContent = tilesText;
+        poolTilesCount.textContent = getTilesRemainingText(count, count === 1);
     }
     
     function getTilesRemainingText(count, singular) {
