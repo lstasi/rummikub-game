@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // UI elements
     const gameStatus = document.getElementById('game-status');
     const playersList = document.getElementById('players-list');
+    const poolTilesCount = document.getElementById('pool-tiles-count');
     const board = document.getElementById('board');
     const rack = document.getElementById('rack');
     const loading = document.getElementById('loading');
@@ -204,6 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!serverGameState) return;
         
         updateGameStatus();
+        updatePoolTilesCount();
         updatePlayersList();
         updateBoard();
         updateRack();
@@ -224,6 +226,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentPlayerName = getCurrentPlayerName();
         const turnIndicator = isCurrentPlayer(playerId) ? '(YOUR TURN)' : '';
         gameStatus.textContent = `${status} - ${currentPlayerName}'s turn ${turnIndicator}`;
+    }
+    
+    function updatePoolTilesCount() {
+        const count = serverGameState.pool_size || 0;
+        const tilesText = count === 1 ? getTilesRemainingText(count, true) : getTilesRemainingText(count, false);
+        poolTilesCount.textContent = tilesText;
+    }
+    
+    function getTilesRemainingText(count, singular) {
+        const lang = I18n.getLang();
+        if (lang === 'pt') {
+            return singular ? `${count} peça restante` : `${count} peças restantes`;
+        } else if (lang === 'es') {
+            return singular ? `${count} ficha restante` : `${count} fichas restantes`;
+        } else {
+            return singular ? `${count} tile remaining` : `${count} tiles remaining`;
+        }
     }
     
     function updatePlayersList() {
