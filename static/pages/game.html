@@ -6,6 +6,9 @@
     <title>Rummikub Game</title>
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="stylesheet" href="/static/css/game.css">
+    <link rel="stylesheet" href="/static/css/jitsi.css">
+    <!-- Jitsi Meet External API -->
+    <script src="https://meet.jit.si/external_api.js"></script>
 </head>
 <body>
     <div class="game-container">
@@ -38,6 +41,32 @@
                 </div>
             </section>
             
+            <!-- Video Conference Panel -->
+            <aside id="jitsi-video-panel" class="video-panel">
+                <div class="video-panel-header">
+                    <div class="video-panel-title">
+                        <span id="jitsi-connection-status" class="connection-status disconnected"></span>
+                        <span>Video Chat</span>
+                        <span id="jitsi-participant-count" class="participant-count"></span>
+                    </div>
+                    <div class="video-panel-controls">
+                        <button id="jitsi-minimize-btn" class="btn-icon" title="Minimize video">_</button>
+                    </div>
+                </div>
+                <div class="video-panel-body">
+                    <div id="jitsi-meet-container"></div>
+                    <div id="jitsi-not-loaded" class="video-placeholder">
+                        <p>Video chat will appear here</p>
+                        <button id="jitsi-join-btn" class="btn btn-primary">Join Video Call</button>
+                    </div>
+                </div>
+                <div class="video-panel-footer">
+                    <button id="jitsi-audio-btn" class="btn-icon" title="Mute microphone">🎤</button>
+                    <button id="jitsi-video-btn" class="btn-icon" title="Turn off camera">📹</button>
+                    <button id="jitsi-chat-btn" class="btn-icon" title="Open chat">💬</button>
+                </div>
+            </aside>
+            
             <section class="transfer-section">
                 <button id="push-to-board-btn" class="btn btn-primary" disabled data-i18n="push-to-board-btn">Push</button>
                 <button id="remove-from-board-btn" class="btn btn-secondary" disabled data-i18n="remove-from-board-btn">Remove</button>
@@ -67,6 +96,7 @@
     
     <script src="/static/js/i18n.js"></script>
     <script src="/static/js/main.js"></script>
+    <script src="/static/js/jitsi.js"></script>
     <script src="/static/js/game.js"></script>
 </body>
 </html>

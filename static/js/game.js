@@ -42,9 +42,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedTiles = new Set();
     let selectedMelds = new Set();
     
+    // Jitsi video conference elements
+    const jitsiJoinBtn = document.getElementById('jitsi-join-btn');
+    const jitsiMinimizeBtn = document.getElementById('jitsi-minimize-btn');
+    const jitsiAudioBtn = document.getElementById('jitsi-audio-btn');
+    const jitsiVideoBtn = document.getElementById('jitsi-video-btn');
+    const jitsiChatBtn = document.getElementById('jitsi-chat-btn');
+    const jitsiNotLoaded = document.getElementById('jitsi-not-loaded');
+    
     // Initialize
     await loadGameState();
     setupEventListeners();
+    setupJitsiEventListeners();
     startPolling();
     
     function setupEventListeners() {
@@ -66,6 +75,77 @@ document.addEventListener('DOMContentLoaded', async () => {
                 toggleDebugInfo();
             }
         });
+        
+        // Clean up Jitsi when leaving page
+        window.addEventListener('beforeunload', () => {
+            if (jitsiManager && jitsiManager.isReady()) {
+                jitsiManager.dispose();
+            }
+        });
+    }
+    
+    function setupJitsiEventListeners() {
+        if (!jitsiJoinBtn || !jitsiMinimizeBtn) return;
+        
+        // Join video call button
+        jitsiJoinBtn.addEventListener('click', async () => {
+            try {
+                // Get player name from game state
+                const currentPlayer = serverGameState?.players.find(p => p.id === playerId);
+                const playerName = currentPlayer?.name || 'Player';
+                
+                // Initialize Jitsi
+                await jitsiManager.initialize(gameId, playerName);
+                
+                // Hide the join button and show the Jitsi container
+                if (jitsiNotLoaded) {
+                    jitsiNotLoaded.classList.add('hidden');
+                }
+                
+                // Update participant count periodically
+                setInterval(() => {
+                    updateParticipantCount();
+                }, 5000);
+                
+            } catch (error) {
+                console.error('Error joining video call:', error);
+                Utils.showError(error, 'Failed to join video call');
+            }
+        });
+        
+        // Minimize/maximize button
+        jitsiMinimizeBtn.addEventListener('click', () => {
+            jitsiManager.toggleMinimize();
+        });
+        
+        // Audio toggle button
+        if (jitsiAudioBtn) {
+            jitsiAudioBtn.addEventListener('click', () => {
+                jitsiManager.toggleAudio();
+            });
+        }
+        
+        // Video toggle button
+        if (jitsiVideoBtn) {
+            jitsiVideoBtn.addEventListener('click', () => {
+                jitsiManager.toggleVideo();
+            });
+        }
+        
+        // Chat button
+        if (jitsiChatBtn) {
+            jitsiChatBtn.addEventListener('click', () => {
+                jitsiManager.toggleChat();
+            });
+        }
+    }
+    
+    function updateParticipantCount() {
+        const countElement = document.getElementById('jitsi-participant-count');
+        if (!countElement || !jitsiManager.isReady()) return;
+        
+        const count = jitsiManager.getParticipantCount();
+        countElement.textContent = count > 0 ? `${count} ${count === 1 ? 'person' : 'people'}` : '';
     }
     
     function toggleDebugInfo() {
