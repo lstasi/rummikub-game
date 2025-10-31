@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // UI elements
     const gameStatus = document.getElementById('game-status');
+    const winnerAnnouncement = document.getElementById('winner-announcement');
     const playersList = document.getElementById('players-list');
     const board = document.getElementById('board');
     const rack = document.getElementById('rack');
@@ -209,14 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateRack();
         updateActionButtons();
         updateDebugInfo();
-        
-        // Check for game end
-        if (serverGameState.status === 'completed') {
-            Utils.navigateTo('win', { 
-                game_id: gameId, 
-                winner: serverGameState.winner_player_id 
-            });
-        }
+        updateWinnerDisplay();
     }
     
     function updateGameStatus() {
@@ -224,6 +218,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentPlayerName = getCurrentPlayerName();
         const turnIndicator = isCurrentPlayer(playerId) ? '(YOUR TURN)' : '';
         gameStatus.textContent = `${status} - ${currentPlayerName}'s turn ${turnIndicator}`;
+    }
+    
+    function updateWinnerDisplay() {
+        // Check for game end and display winner
+        if (serverGameState.status === 'completed') {
+            const winner = serverGameState.players.find(p => p.id === serverGameState.winner_player_id);
+            const winnerName = winner ? winner.name : 'Unknown Player';
+            
+            // Check if current player won
+            const isCurrentPlayerWinner = serverGameState.winner_player_id === playerId;
+            
+            if (isCurrentPlayerWinner) {
+                winnerAnnouncement.textContent = `🎉 Congratulations! You Won! 🎉`;
+            } else {
+                winnerAnnouncement.textContent = `🏆 ${winnerName} Won! 🏆`;
+            }
+            
+            winnerAnnouncement.style.display = 'block';
+            
+            // Disable all action buttons when game is completed
+            pushToBoardBtn.disabled = true;
+            removeFromBoardBtn.disabled = true;
+            breakMeldBtn.disabled = true;
+            groupMeldBtn.disabled = true;
+            drawTileBtn.disabled = true;
+            endTurnBtn.disabled = true;
+            resetBtn.disabled = true;
+        } else {
+            winnerAnnouncement.style.display = 'none';
+        }
     }
     
     function updatePlayersList() {
