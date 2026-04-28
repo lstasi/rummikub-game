@@ -12,7 +12,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // UI elements
+    const gameTitle = document.getElementById('game-title');
     const gameStatus = document.getElementById('game-status');
+    const winnerAnnouncement = document.getElementById('winner-announcement');
     const playersList = document.getElementById('players-list');
     const poolTilesCount = document.getElementById('pool-tiles-count');
     const board = document.getElementById('board');
@@ -189,6 +191,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!wasMyTurn && isCurrentPlayer(playerId)) {
                         resetLocalState();
                     }
+                    // If it's not my turn, update the board to show the server state
+                    else if (!isCurrentPlayer(playerId)) {
+                        localBoardState = {
+                            melds: serverGameState ? [...serverGameState.board.melds] : []
+                        };
+                    }
                     
                     updateUI();
                 } catch (error) {
@@ -204,6 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateUI() {
         if (!serverGameState) return;
         
+        updateGameTitle();
         updateGameStatus();
         updatePoolTilesCount();
         updatePlayersList();
@@ -211,13 +220,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateRack();
         updateActionButtons();
         updateDebugInfo();
-        
-        // Check for game end
-        if (serverGameState.status === 'completed') {
-            Utils.navigateTo('win', { 
-                game_id: gameId, 
-                winner: serverGameState.winner_player_id 
-            });
+        updateWinnerDisplay();
+    }
+    
+    function updateGameTitle() {
+        if (serverGameState && serverGameState.game_name) {
+            // textContent automatically escapes HTML, providing XSS protection
+            // Limit length to prevent UI issues with extremely long names
+            const gameName = serverGameState.game_name.substring(0, 100);
+            gameTitle.textContent = gameName;
         }
     }
     
@@ -241,6 +252,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             return singular ? `${count} ficha restante` : `${count} fichas restantes`;
         } else {
             return singular ? `${count} tile remaining` : `${count} tiles remaining`;
+        }
+    }
+    
+    function updateWinnerDisplay() {
+        // Check for game end and display winner
+        if (serverGameState.status === 'completed') {
+            const winner = serverGameState.players.find(p => p.id === serverGameState.winner_player_id);
+            const winnerName = winner ? winner.name : 'Unknown Player';
+            
+            // Check if current player won
+            const isCurrentPlayerWinner = serverGameState.winner_player_id === playerId;
+            
+            if (isCurrentPlayerWinner) {
+                winnerAnnouncement.textContent = `🎉 Congratulations! You Won! 🎉`;
+            } else {
+                winnerAnnouncement.textContent = `🏆 ${winnerName} Won! 🏆`;
+            }
+            
+            winnerAnnouncement.style.display = 'block';
+            
+            // Disable all action buttons when game is completed
+            pushToBoardBtn.disabled = true;
+            removeFromBoardBtn.disabled = true;
+            breakMeldBtn.disabled = true;
+            groupMeldBtn.disabled = true;
+            drawTileBtn.disabled = true;
+            endTurnBtn.disabled = true;
+            resetBtn.disabled = true;
+        } else {
+            winnerAnnouncement.style.display = 'none';
         }
     }
     
@@ -414,11 +455,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return false;
         });
         
+        // Check if player has made changes to the board (put tiles on board)
+        const hasBoardChanges = !arraysEqual(localBoardState.melds, initialTurnBoardState?.melds || []);
+        
         pushToBoardBtn.disabled = !isMyTurn || !hasSelectedTiles;
         removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedMelds || !canRemoveFromBoard;
         breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasBreakableMelds;
         groupMeldBtn.disabled = !isMyTurn || !canGroupMelds;
-        drawTileBtn.disabled = !isMyTurn;
+        drawTileBtn.disabled = !isMyTurn || hasBoardChanges;
         endTurnBtn.disabled = !isMyTurn;
     }
     
@@ -606,22 +650,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function sortTilesForRun(tiles) {
-        // Sort tiles by their number value
-        // For runs, we need to sort numbered tiles and keep jokers in relative positions
-        // The backend will handle joker validation and assignment
+        // Sort tiles by their number value and intelligently place jokers in gaps
         const numberedTiles = tiles.filter(t => !t.startsWith('j'));
         const jokerTiles = tiles.filter(t => t.startsWith('j'));
         
         // Sort numbered tiles by number
-        numberedTiles.sort((a, b) => {
-            const aNum = parseInt(a.match(/^(\d+)/)?.[1] || '0');
-            const bNum = parseInt(b.match(/^(\d+)/)?.[1] || '0');
-            return aNum - bNum;
-        });
+        const sortedNumbered = numberedTiles.map(t => {
+            const num = parseInt(t.match(/^(\d+)/)?.[1] || '0');
+            return { tile: t, num: num };
+        }).sort((a, b) => a.num - b.num);
         
-        // For now, append jokers at the end
-        // The backend validation will properly handle joker positions
-        return [...numberedTiles, ...jokerTiles];
+        if (sortedNumbered.length === 0) {
+            // Only jokers, can't sort properly
+            return jokerTiles;
+        }
+        
+        // Build the sequence with jokers filling gaps
+        const result = [];
+        let jokerIndex = 0;
+        
+        // Determine if we need jokers at the start
+        // (if first numbered tile is > 1 and we have jokers, they might go at start)
+        const firstNum = sortedNumbered[0].num;
+        const expectedStart = Math.max(1, firstNum - jokerTiles.length);
+        
+        // Add jokers before first numbered tile if needed
+        for (let i = expectedStart; i < firstNum && jokerIndex < jokerTiles.length; i++) {
+            result.push(jokerTiles[jokerIndex++]);
+        }
+        
+        // Add numbered tiles and fill gaps with jokers
+        for (let i = 0; i < sortedNumbered.length; i++) {
+            result.push(sortedNumbered[i].tile);
+            
+            // Check if there's a gap to the next numbered tile
+            if (i < sortedNumbered.length - 1) {
+                const currentNum = sortedNumbered[i].num;
+                const nextNum = sortedNumbered[i + 1].num;
+                const gap = nextNum - currentNum - 1;
+                
+                // Fill gap with jokers
+                for (let j = 0; j < gap && jokerIndex < jokerTiles.length; j++) {
+                    result.push(jokerTiles[jokerIndex++]);
+                }
+            }
+        }
+        
+        // Add remaining jokers at the end
+        while (jokerIndex < jokerTiles.length) {
+            result.push(jokerTiles[jokerIndex++]);
+        }
+        
+        return result;
     }
     
     async function drawTile() {

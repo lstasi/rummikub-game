@@ -51,7 +51,24 @@ const Utils = {
             element = document.getElementById(element);
         }
         if (element) {
-            element.textContent = message;
+            // Clear existing content
+            element.innerHTML = '';
+            
+            // Create message span
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            messageSpan.className = 'error-message';
+            
+            // Create close button
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '×';
+            closeBtn.className = 'error-close';
+            closeBtn.setAttribute('aria-label', 'Close error');
+            closeBtn.onclick = () => this.hideError(element);
+            
+            // Append elements
+            element.appendChild(messageSpan);
+            element.appendChild(closeBtn);
             element.style.display = 'block';
         }
     },
@@ -92,6 +109,7 @@ const API = {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'include',  // Include credentials (cookies, Basic Auth) in requests
             ...options
         };
         
@@ -167,6 +185,12 @@ const API = {
         return this.request(`/games/${gameId}/players/${playerId}/actions/draw`, {
             method: 'POST',
             body: {}
+        });
+    },
+    
+    async deleteGame(gameId) {
+        return this.request(`/games/${gameId}`, {
+            method: 'DELETE'
         });
     }
 };

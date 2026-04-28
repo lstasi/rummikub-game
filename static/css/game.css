@@ -30,6 +30,30 @@
     margin-top: 5px;
 }
 
+.winner-announcement {
+    margin-top: 10px;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    animation: fadeIn 0.5s ease-in;
+    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .players-info {
     flex: 1;
     max-width: 500px;
@@ -373,6 +397,7 @@
     background-color: #f44336 !important;
     color: white !important;
     padding: 15px;
+    padding-right: 45px;
     border-radius: 8px;
     margin: 10px;
     white-space: pre-wrap;
@@ -380,4 +405,38 @@
     font-size: 14px;
     max-height: 200px;
     overflow-y: auto;
+    position: relative;
+}
+
+.error-message {
+    display: block;
+}
+
+.error-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    line-height: 1;
+}
+
+.error-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.error-close:active {
+    background-color: rgba(255, 255, 255, 0.3);
 }
