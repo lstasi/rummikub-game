@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!wasMyTurn && isCurrentPlayer(playerId)) {
                         resetLocalState();
                     }
-                    // If it's not my turn, show the authoritative board state from the server
+                    // If it's not my turn, update the board to show the server state
                     else if (!isCurrentPlayer(playerId)) {
                         localBoardState = {
                             melds: serverGameState ? [...serverGameState.board.melds] : []
@@ -222,9 +222,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateGameTitle() {
-        if (gameTitle && serverGameState?.game_name) {
+        if (gameTitle && serverGameState && serverGameState.game_name) {
             // textContent automatically escapes HTML, providing XSS protection
-            gameTitle.textContent = serverGameState.game_name.substring(0, 100);
+            // Limit length to prevent UI issues with extremely long names
+            const gameName = serverGameState.game_name.substring(0, 100);
+            gameTitle.textContent = gameName;
         }
     }
     
