@@ -560,6 +560,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
+        // Remove selected tiles from the rack (for tiles that came from the rack)
+        playerRackState.tiles = playerRackState.tiles.filter(t => !selectedTiles.has(t));
+        
         // Remove empty melds (melds with no tiles left)
         localBoardState.melds = localBoardState.melds.filter(meld => meld.tiles.length > 0);
         
