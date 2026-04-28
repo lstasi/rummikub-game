@@ -282,6 +282,142 @@ docker volume inspect rummikub-game_redis_data
 docker compose down -v
 ```
 
+## Video Conferencing Integration
+
+The application includes Jitsi Meet integration for real-time video and audio communication between players.
+
+### Using Public Jitsi Server (Default)
+
+By default, the application uses the public Jitsi Meet server (meet.jit.si):
+
+- **No configuration needed** - works out of the box
+- **No infrastructure required** - completely free
+- **Automatic room creation** - based on game ID
+- **Privacy** - rooms use unique game IDs
+
+This is suitable for most deployments and testing.
+
+### Using Self-Hosted Jitsi Server
+
+For production deployments requiring more control, you can use a self-hosted Jitsi Meet instance:
+
+#### 1. Deploy Jitsi Meet Server
+
+Follow the [Jitsi Self-Hosting Guide](https://jitsi.github.io/handbook/docs/devops-guide/devops-guide-quickstart) to set up your own server.
+
+Quick setup using Docker:
+
+```bash
+# Clone Jitsi Docker setup
+git clone https://github.com/jitsi/docker-jitsi-meet
+cd docker-jitsi-meet
+
+# Copy environment file
+cp env.example .env
+
+# Configure your domain in .env
+# Set ENABLE_AUTH=0 for open rooms (or configure authentication)
+
+# Start Jitsi services
+docker compose up -d
+```
+
+#### 2. Configure Rummikub to Use Your Jitsi Server
+
+Update the Jitsi domain in `/static/js/jitsi.js`:
+
+```javascript
+// Change this line in JitsiManager constructor:
+this.domain = 'your-jitsi-server.com'; // Instead of 'meet.jit.si'
+```
+
+Or use environment variable (requires code modification):
+
+```bash
+# Add to docker-compose.yml or .env
+JITSI_DOMAIN=your-jitsi-server.com
+```
+
+#### 3. SSL/TLS Configuration
+
+Jitsi requires HTTPS for camera/microphone access:
+
+- Ensure your Jitsi server has valid SSL certificate
+- Use Let's Encrypt for free certificates
+- Configure your domain DNS to point to Jitsi server
+
+### Combined Deployment with Jitsi
+
+To run both Rummikub and Jitsi on the same infrastructure:
+
+```yaml
+# docker-compose.full.yml
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    # ... existing redis config ...
+
+  api:
+    image: ghcr.io/lstasi/rummikub-game:latest
+    # ... existing api config ...
+    environment:
+      - JITSI_DOMAIN=jitsi.yourdomain.com
+
+  jitsi-web:
+    image: jitsi/web:stable
+    ports:
+      - "8443:443"
+      - "8000:80"
+    environment:
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - DISABLE_HTTPS=0
+    volumes:
+      - ./jitsi-config:/config
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable
+    environment:
+      - ENABLE_AUTH=0
+    volumes:
+      - ./jitsi-prosody:/config
+
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable
+    volumes:
+      - ./jitsi-jicofo:/config
+
+  jitsi-jvb:
+    image: jitsi/jvb:stable
+    ports:
+      - "10000:10000/udp"
+    environment:
+      - DOCKER_HOST_ADDRESS=your-server-ip
+    volumes:
+      - ./jitsi-jvb:/config
+```
+
+### Troubleshooting Video Conferencing
+
+**Issue: Camera/Microphone not working**
+- Ensure HTTPS is configured (required by browsers)
+- Check browser permissions for camera/microphone
+- Verify firewall allows WebRTC ports
+
+**Issue: Video not loading**
+- Check browser console for errors
+- Verify Jitsi External API script is loading
+- Check network connectivity to Jitsi server
+
+**Issue: Poor video quality**
+- Check network bandwidth
+- Reduce number of participants
+- Disable video and use audio-only
+
+For detailed Jitsi integration documentation, see `doc/JITSI_INTEGRATION.md`.
+
 ## Testing in Docker
 
 Run tests against the containerized services:

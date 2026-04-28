@@ -135,19 +135,23 @@ GET /api/v1/games/{game_id}/players/{player_id}
 
 **Layout Structure**:
 ```
-┌─────────────────────────────────────┐
-│ Header: Game Info & Controls        │
-├─────────────────────────────────────┤
-│                                     │
-│ Board Area: Played Melds            │
-│ (Scrollable, drag-drop enabled)     │
-│                                     │
-├─────────────────────────────────────┤
-│ Player Rack: My Tiles               │
-│ (Drag-drop enabled, sortable)       │
-├─────────────────────────────────────┤
-│ Actions Panel: Play/Draw/End Turn   │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ Header: Game Info & Controls                        │
+├──────────────────────────┬──────────────────────────┤
+│                          │                          │
+│                          │  Video Conference Panel  │
+│                          │  (Optional, collapsible) │
+│  Board Area              │  - Player video feeds    │
+│  (Played Melds)          │  - Audio/video controls  │
+│  (Scrollable, drag-drop) │  - Chat integration      │
+│                          │                          │
+│                          │  [🎤] [📹] [💬] [_]      │
+├──────────────────────────┴──────────────────────────┤
+│ Player Rack: My Tiles                               │
+│ (Drag-drop enabled, sortable)                       │
+├─────────────────────────────────────────────────────┤
+│ Actions Panel: Play/Draw/End Turn                   │
+└─────────────────────────────────────────────────────┘
 ```
 
 **Components**:
@@ -175,6 +179,14 @@ GET /api/v1/games/{game_id}/players/{player_id}
 - Sort options (by number, by color, by groups)
 - Tile counter showing remaining count
 - Visual feedback for selected tiles
+
+**Video Conference Panel** (Optional):
+- Integrated Jitsi Meet video conferencing
+- Real-time audio and video with other players
+- Collapsible to maximize board space
+- Controls: microphone mute, camera toggle, chat
+- Automatic room creation based on game ID
+- See `doc/JITSI_INTEGRATION.md` for details
 
 **Actions Panel**:
 - "Play Tiles" button (enabled when tiles selected)
@@ -458,6 +470,48 @@ const handleApiError = (error, action) => {
 - UI rendering performance
 - User action completion rates
 - Error frequencies by type
+
+## Video & Audio Communication
+
+### Overview
+The game includes integrated video and audio conferencing powered by Jitsi Meet, enabling real-time communication between players during gameplay.
+
+### Features
+- **Real-time Video**: See other players via webcam feeds
+- **Audio Communication**: Talk with other players during the game
+- **Text Chat**: Built-in text chat as alternative to voice
+- **Privacy Controls**: Individual mute/camera toggle for each player
+- **Collapsible UI**: Minimize video panel to focus on gameplay
+- **Automatic Rooms**: Players in the same game automatically join the same video room
+
+### Integration Details
+See `doc/JITSI_INTEGRATION.md` for complete technical details.
+
+### User Experience
+
+#### Joining Video Call
+1. Enter game screen
+2. Click "Join Video Call" button (if not auto-joined)
+3. Grant browser permissions for camera/microphone
+4. Video panel shows all participants
+5. Other players' videos appear automatically
+
+#### During Game
+- Video panel positioned to not obstruct gameplay
+- Can be minimized to icon bar when not needed
+- Visual indicators show who is speaking
+- Controls always accessible: mute, camera on/off, chat
+
+#### Responsive Behavior
+- **Desktop**: Video panel on right side of board
+- **Tablet**: Floating video panel overlay
+- **Mobile**: Toggle between game view and video view
+
+### Privacy & Permissions
+- Video participation is optional
+- Camera and microphone can be disabled independently
+- No recording by default
+- Rooms use unique game IDs for privacy
 
 ## Development Phases
 
