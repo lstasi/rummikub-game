@@ -12,7 +12,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // UI elements
+    const gameTitle = document.getElementById('game-title');
     const gameStatus = document.getElementById('game-status');
+    const winnerAnnouncement = document.getElementById('winner-announcement');
     const playersList = document.getElementById('players-list');
     const board = document.getElementById('board');
     const rack = document.getElementById('rack');
@@ -188,6 +190,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!wasMyTurn && isCurrentPlayer(playerId)) {
                         resetLocalState();
                     }
+                    // If it's not my turn, show the authoritative board state from the server
+                    else if (!isCurrentPlayer(playerId)) {
+                        localBoardState = {
+                            melds: serverGameState ? [...serverGameState.board.melds] : []
+                        };
+                    }
                     
                     updateUI();
                 } catch (error) {
@@ -203,19 +211,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateUI() {
         if (!serverGameState) return;
         
+        updateGameTitle();
         updateGameStatus();
         updatePlayersList();
         updateBoard();
         updateRack();
         updateActionButtons();
         updateDebugInfo();
-        
-        // Check for game end
-        if (serverGameState.status === 'completed') {
-            Utils.navigateTo('win', { 
-                game_id: gameId, 
-                winner: serverGameState.winner_player_id 
-            });
+        updateWinnerDisplay();
+    }
+
+    function updateGameTitle() {
+        if (gameTitle && serverGameState?.game_name) {
+            // textContent automatically escapes HTML, providing XSS protection
+            gameTitle.textContent = serverGameState.game_name.substring(0, 100);
         }
     }
     
@@ -224,6 +233,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentPlayerName = getCurrentPlayerName();
         const turnIndicator = isCurrentPlayer(playerId) ? '(YOUR TURN)' : '';
         gameStatus.textContent = `${status} - ${currentPlayerName}'s turn ${turnIndicator}`;
+    }
+
+    function updateWinnerDisplay() {
+        if (serverGameState.status !== 'completed') {
+            if (winnerAnnouncement) {
+                winnerAnnouncement.style.display = 'none';
+            }
+            return;
+        }
+
+        if (!winnerAnnouncement) {
+            Utils.navigateTo('win', {
+                game_id: gameId,
+                winner: serverGameState.winner_player_id
+            });
+            return;
+        }
+
+        const winner = serverGameState.players.find(player => player.id === serverGameState.winner_player_id);
+        const winnerName = winner ? winner.name : 'Unknown Player';
+
+        if (serverGameState.winner_player_id === playerId) {
+            winnerAnnouncement.textContent = 'Congratulations! You won!';
+        } else {
+            winnerAnnouncement.textContent = `${winnerName} won!`;
+        }
+
+        winnerAnnouncement.style.display = 'block';
+
+        pushToBoardBtn.disabled = true;
+        removeFromBoardBtn.disabled = true;
+        breakMeldBtn.disabled = true;
+        groupMeldBtn.disabled = true;
+        drawTileBtn.disabled = true;
+        endTurnBtn.disabled = true;
+        resetBtn.disabled = true;
     }
     
     function updatePlayersList() {
@@ -308,16 +353,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             meldDiv.appendChild(tileElement);
         });
         
-        // Only add meld-level click handler for individual tiles (not groups/runs)
-        // This allows clicking on the background of individual tiles to select the meld
-        if (meld.kind === 'individual') {
-            meldDiv.addEventListener('click', (e) => {
-                // Only trigger if clicking on the meld div itself, not a tile
-                if (e.target === meldDiv) {
-                    toggleMeldSelection(meld.id);
-                }
-            });
-        }
+        meldDiv.addEventListener('click', (e) => {
+            // Only trigger if clicking the meld container itself, not a tile.
+            if (e.target === meldDiv) {
+                toggleMeldSelection(meld.id);
+            }
+        });
         
         return meldDiv;
     }
@@ -407,12 +448,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tilesInRack = Array.from(selectedTiles).filter(tileId => 
             playerRackState.tiles.includes(tileId)
         );
+
+        const hasBoardChanges = !arraysEqual(localBoardState.melds, initialTurnBoardState?.melds || []);
         
         pushToBoardBtn.disabled = !isMyTurn || tilesInRack.length === 0;
         removeFromBoardBtn.disabled = !isMyTurn || !hasSelectedTiles || !canRemoveFromBoard;
         breakMeldBtn.disabled = !isMyTurn || !hasSelectedMelds || !hasBreakableMelds;
         groupMeldBtn.disabled = !isMyTurn || !canGroupTiles;
-        drawTileBtn.disabled = !isMyTurn;
+        drawTileBtn.disabled = !isMyTurn || hasBoardChanges;
         endTurnBtn.disabled = !isMyTurn;
     }
     
@@ -626,22 +669,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function sortTilesForRun(tiles) {
-        // Sort tiles by their number value
-        // For runs, we need to sort numbered tiles and keep jokers in relative positions
-        // The backend will handle joker validation and assignment
+        // Sort tiles by their number value and fill numeric gaps with jokers when possible.
         const numberedTiles = tiles.filter(t => !t.startsWith('j'));
         const jokerTiles = tiles.filter(t => t.startsWith('j'));
         
-        // Sort numbered tiles by number
-        numberedTiles.sort((a, b) => {
-            const aNum = parseInt(a.match(/^(\d+)/)?.[1] || '0');
-            const bNum = parseInt(b.match(/^(\d+)/)?.[1] || '0');
-            return aNum - bNum;
-        });
-        
-        // For now, append jokers at the end
-        // The backend validation will properly handle joker positions
-        return [...numberedTiles, ...jokerTiles];
+        const sortedNumbered = numberedTiles.map(tileId => {
+            const number = parseInt(tileId.match(/^(\d+)/)?.[1] || '0');
+            return { tileId, number };
+        }).sort((left, right) => left.number - right.number);
+
+        if (sortedNumbered.length === 0) {
+            return jokerTiles;
+        }
+
+        const result = [];
+        let jokerIndex = 0;
+        const firstNumber = sortedNumbered[0].number;
+        const expectedStart = Math.max(1, firstNumber - jokerTiles.length);
+
+        for (let number = expectedStart; number < firstNumber && jokerIndex < jokerTiles.length; number += 1) {
+            result.push(jokerTiles[jokerIndex]);
+            jokerIndex += 1;
+        }
+
+        for (let index = 0; index < sortedNumbered.length; index += 1) {
+            result.push(sortedNumbered[index].tileId);
+
+            if (index < sortedNumbered.length - 1) {
+                const currentNumber = sortedNumbered[index].number;
+                const nextNumber = sortedNumbered[index + 1].number;
+                const gap = nextNumber - currentNumber - 1;
+
+                for (let offset = 0; offset < gap && jokerIndex < jokerTiles.length; offset += 1) {
+                    result.push(jokerTiles[jokerIndex]);
+                    jokerIndex += 1;
+                }
+            }
+        }
+
+        while (jokerIndex < jokerTiles.length) {
+            result.push(jokerTiles[jokerIndex]);
+            jokerIndex += 1;
+        }
+
+        return result;
     }
     
     async function drawTile() {
