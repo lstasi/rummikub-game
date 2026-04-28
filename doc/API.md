@@ -44,6 +44,7 @@ Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
 
 **Endpoints Not Requiring Authentication:**
 - `GET /games` - List all games (public)
+- `DELETE /games/{game_id}` - Delete game
 
 ## Endpoints
 
@@ -436,6 +437,40 @@ Draw a tile from the pool.
 - `400 Bad Request`: Pool is empty
 - `403 Forbidden`: Not player's turn or player not in game
 - `404 Not Found`: Game not found
+
+### 8. Delete Game
+
+**DELETE `/games/{game_id}`**
+
+Delete a game by game ID. This permanently removes the game from the system.
+
+**Authentication:** Not required
+
+**Path Parameters**
+- `game_id`: UUID string of the game to delete
+
+**Response: 200 OK**
+```json
+{
+  "status": "deleted",
+  "game_id": "123e4567-e89b-12d3-a456-426614174000"
+}
+```
+
+**Notes**
+- No authentication required to delete a game
+- Can delete games in any state (waiting, in progress, or completed)
+- Deletion is permanent and cannot be undone
+- All game data including player states and board state are removed
+
+**Errors**
+- `404 Not Found`: Game not found
+
+**Example:**
+```bash
+# Delete a game
+curl -X DELETE http://localhost:8090/api/v1/games/123e4567-e89b-12d3-a456-426614174000
+```
 
 ## Data Models
 
