@@ -103,6 +103,18 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+    gap: 15px;
+}
+
+.board-info {
+    flex: 1;
+    text-align: center;
+}
+
+.pool-tiles-count {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
 }
 
 .board-section h2 {
