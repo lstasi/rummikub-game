@@ -30,6 +30,30 @@
     margin-top: 5px;
 }
 
+.winner-announcement {
+    margin-top: 10px;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    animation: fadeIn 0.5s ease-in;
+    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .players-info {
     flex: 1;
     max-width: 500px;
