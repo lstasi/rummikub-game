@@ -1,112 +1,101 @@
 # GitHub Copilot Instructions – Rummikub Game
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
+Always reference these instructions first and fallback to search or bash commands only when the repository does not match the information below.
 
 ## Working Effectively
 
 ### Bootstrap and Build the Repository
-- Install dependencies: `pip install -e .[dev]` -- takes ~30 seconds
-- All quality gates combined take under 1 second total
+- Install dependencies: `pip install -e .[dev]`
 - Run quality gates: `ruff check . && mypy src/ && pytest tests/ -v --cov=src --cov-report=term-missing`
+- Use `./scripts/pyrun.sh` for quick model and rule exploration
 
-### Quality Gates (Required Before Any Commit)
-- **Lint**: `ruff check .` -- takes ~0.01s, must return "All checks passed!"
-- **Type Check**: `mypy src/` -- takes ~0.3s, must return "Success: no issues found"
-- **Tests**: `pytest tests/ -v --cov=src --cov-report=term-missing` -- takes ~0.3s, all tests must pass
+### Quality Gates
+- **Lint**: `ruff check .`
+- **Type Check**: `mypy src/`
+- **Tests**: `pytest tests/ -v --cov=src --cov-report=term-missing`
 
 ### Test File Naming Convention
-- **Test files use the `*_tests.py` pattern** (e.g., `model_validation_tests.py`, `game_engine_tests.py`)
-- Configuration in `pytest.ini` specifies `python_files = *_tests.py`
-- Create tests under appropriate subdirectories: `tests/models/`, `tests/engine/`, etc.
+- Test files use the `*_tests.py` pattern
+- `pytest.ini` sets `python_files = *_tests.py`
+- Organize tests by layer: `tests/models/`, `tests/engine/`, `tests/service/`, `tests/api/`
 
 ### Development Workflow
-- **ALWAYS use the pyrun script**: `./scripts/pyrun.sh "python code here"` for testing models
-- **Interactive mode**: `./scripts/pyrun.sh -i` for exploration
-- **File execution**: `./scripts/pyrun.sh -f path/to/script.py`
+- Update the relevant docs before changing behavior
+- Keep changes narrow and validated
+- Use Conventional Commit prefixes when writing commit messages
+- Add new work to `TODO.md` if it is out of scope for the current task
 
-### Examples of Working with the Codebase
+## Examples of Working with the Codebase
+
 ```bash
 # Test basic tile creation
 ./scripts/pyrun.sh "
-from rummikub.models import Color, NumberedTile, TileInstance
-tile = TileInstance(kind=NumberedTile(number=7, color=Color.RED))
-print(f'Created: {tile} (ID: {tile.id})')
+from rummikub.models import Color, TileUtils
+tile_id = TileUtils.create_numbered_tile_id(7, Color.RED, 'a')
+print(tile_id, TileUtils.format_tile(tile_id))
 "
 
 # Test meld validation
 ./scripts/pyrun.sh "
-from rummikub.models import Color, NumberedTile, TileInstance, Meld, MeldKind
-
-# Create a valid group (same number, different colors)
+from rummikub.models import Color, TileUtils, Meld, MeldKind
 tiles = [
-    TileInstance(kind=NumberedTile(number=7, color=Color.RED)),
-    TileInstance(kind=NumberedTile(number=7, color=Color.BLUE)),
-    TileInstance(kind=NumberedTile(number=7, color=Color.BLACK))
+    TileUtils.create_numbered_tile_id(7, Color.RED, 'a'),
+    TileUtils.create_numbered_tile_id(7, Color.BLUE, 'a'),
+    TileUtils.create_numbered_tile_id(7, Color.BLACK, 'a'),
 ]
-
-group = Meld(kind=MeldKind.GROUP, tiles=[t.id for t in tiles])
-tile_instances = {str(t.id): t for t in tiles}
-group.validate_with_tiles(tile_instances)
-print(f'Valid group with value: {group.get_value(tile_instances)}')
+meld = Meld(kind=MeldKind.GROUP, tiles=tiles)
+meld.validate()
+print(meld.id, meld.get_value())
 "
 ```
 
 ## Current Capabilities
 
-### What You Can Build and Test
-- **Models layer**: Complete implementation with validation, serialization
-- **Domain logic**: Tile management, meld validation, game state tracking
-- **All basic Rummikub rules**: Groups, runs, jokers, initial meld requirements
+### Implemented Today
+- Dataclass-based domain models with deterministic tile IDs
+- Game engine for joins, draws, plays, meld validation, initial melds, and win checks
+- Redis-backed service with per-game locking
+- FastAPI API with request/response models and structured exception handling
+- Static browser UI for home, game, and win flows
+- Dockerfile, Docker Compose files, CI workflow, and image-publish workflow
 
-### What Is NOT Yet Implemented
-- **API layer**: No FastAPI server to run
-- **Service layer**: No Redis integration
-- **UI layer**: No user interface
-- **Docker**: No containerization yet
+### Important Known Gaps
+- Player-scoped API routes are not yet bound to the authenticated caller
+- Play validation does not yet fully enforce board-tile conservation after board replacement
+- `winner_player_id` is not populated consistently on game completion
+- UI still uses polling and button-driven board editing instead of push updates and drag-and-drop
 
-### Validation Scenarios
-Always run these scenarios after making model changes:
-1. **Tile Creation**: Create numbered tiles and jokers with valid/invalid parameters
-2. **Meld Validation**: Test groups (same number, different colors) and runs (consecutive numbers, same color)
-3. **Joker Handling**: Test joker assignment in groups and runs  
-4. **Game State**: Create players and game states
-5. **Initial Meld**: Test 30-point minimum requirement validation
+Check `doc/CODE_REVIEW.md` and `TODO.md` before starting work.
 
-## Contributing Workflow
+## Required Documentation Files
 
-### Golden Rules
-- Follow the TODO list strictly (`TODO.md`) - work on one task at a time
-- Use the 5-step loop: Propose → Update docs → Implement → Test → Quality gates
-- Never leave the repo broken - fix or revert within the same task
-- Use Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, etc.)
+Update these docs when behavior changes:
+- `doc/ARCHITECTURE.md`
+- `doc/MODELS.md`
+- `doc/ENGINE.md`
+- `doc/SERVICE.md`
+- `doc/API.md`
+- `doc/UI.md`
+- `doc/DEPLOYMENT.md`
+- `doc/TESTING.md`
+- `doc/CODE_REVIEW.md` when fixing or discovering important bugs
 
-### Required Documentation Files
-Update these docs BEFORE coding (located in `doc/`):
-- `ARCHITECTURE.md` - System overview  
-- `MODELS.md` - Domain model design (already comprehensive)
-- `ENGINE.md` - Game engine API
-- `SERVICE.md` - Redis integration design
-- `API.md` - REST endpoints design  
-- `UI.md` - User interface flows
-- `DEPLOYMENT.md` - Docker and deployment
-- `TESTING.md` - Test strategy (already detailed)
-
-### Reference Files
-- `RUMMIKUB_RULES.md` - Authoritative game rules
-- `TODO.md` - Current active task (follow strictly)
+Reference files:
+- `RUMMIKUB_RULES.md`
+- `TODO.md`
 
 ## Technology Constraints
 
 ### Stack
-- **Language**: Python 3.11+ (3.12 available)
-- **Models**: Dataclasses (not Pydantic models despite dependency)
-- **API**: FastAPI (not yet implemented)
-- **Storage**: Redis (not yet implemented) 
-- **Testing**: pytest with 87% coverage
-- **Linting**: ruff + mypy
+- **Language**: Python 3.11+
+- **Models**: Dataclasses
+- **API**: FastAPI
+- **Storage**: Redis
+- **Testing**: pytest
+- **Linting/Types**: ruff + mypy
 
 ### Key Packages
-- Core: `fastapi>=0.115`, `uvicorn[standard]>=0.30`, `redis>=5.0`  
+- Core: `fastapi>=0.115`, `uvicorn[standard]>=0.30`, `redis>=5.0`
 - Testing: `pytest>=8.3`, `pytest-cov>=5.0`, `fakeredis>=2.23`, `httpx>=0.27`
 - Quality: `ruff>=0.6`, `mypy>=1.11`
 
@@ -114,123 +103,99 @@ Update these docs BEFORE coding (located in `doc/`):
 
 ### Run the Test Suite
 ```bash
-# Basic test run
-pytest
-
-# With coverage report  
-pytest --cov=src --cov-report=term-missing
-
-# Specific test file
-pytest tests/models/model_validation_tests.py -v
-```
-
-### Fix Code Quality Issues
-```bash  
-# Auto-fix linting issues
-ruff check --fix .
-
-# Check type annotations
-mypy src/
-
-# Run all quality gates
-ruff check . && mypy src/ && pytest tests/ -v
+pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
 ### Explore the Models
 ```bash
-# Interactive exploration
 ./scripts/pyrun.sh -i
+```
 
-# Then in Python:
+In the interactive shell:
+
+```python
 from rummikub.models import *
-help(TileInstance)
+help(TileUtils)
 help(Meld)
 ```
 
 ## Repository Structure
 
 ### Source Code
-```
+```text
 src/rummikub/
-├── __init__.py
+├── api/
+├── engine/
 ├── models/
-│   ├── __init__.py          # Main exports
-│   ├── base.py              # UUID generation utilities
-│   ├── tiles.py             # Color, NumberedTile, JokerTile, TileInstance  
-│   ├── melds.py             # Meld, MeldKind with validation
-│   ├── game.py              # Player, Rack, Pool, Board, GameState
-│   ├── actions.py           # Turn, ActionType, Move
-│   └── exceptions.py        # Domain-specific exceptions
+└── service/
 ```
 
 ### Tests
-```
+```text
 tests/
-├── conftest.py              # pytest fixtures
-└── models/
-    ├── initialization_tests.py   # Basic model creation
-    └── model_validation_tests.py # Validation rules
+├── api/
+├── engine/
+├── models/
+└── service/
 ```
 
 ### Documentation
-```
+```text
 doc/
-├── ARCHITECTURE.md          # High-level design
-├── MODELS.md               # Domain model specs (comprehensive)
-├── ENGINE.md               # Game engine design (stub)
-├── SERVICE.md              # Redis integration design (stub)
-├── API.md                  # REST API design (stub)  
-├── UI.md                   # UI flows design (stub)
-├── DEPLOYMENT.md           # Docker setup (stub)
-└── TESTING.md              # Test strategy (detailed)
+├── ARCHITECTURE.md
+├── API.md
+├── BUGFIX_UI_REFRESH.md
+├── CODE_REVIEW.md
+├── DEPLOYMENT.md
+├── ENGINE.md
+├── HOME_PAGE_REDESIGN.md
+├── MODELS.md
+├── SERVICE.md
+├── TESTING.md
+└── UI.md
 ```
 
 ## Domain Model Reference
 
 ### Core Entities
-- **Color**: `BLACK`, `RED`, `BLUE`, `ORANGE` 
-- **TileInstance**: Physical tile with UUID and kind (NumberedTile or JokerTile)
-- **Meld**: GROUP (same number, different colors) or RUN (consecutive numbers, same color)
-- **Player**: Has ID, name, rack, and initial_meld_met flag
-- **GameState**: Contains players, pool, board, and game status
+- **Color**: `BLACK`, `RED`, `BLUE`, `ORANGE`
+- **Tile IDs**: physical tiles represented as strings like `7ra` or `ja`
+- **Meld**: `GROUP` or `RUN`
+- **Player**: id, name, rack, joined flag, and initial meld status
+- **GameState**: players, pool, board, status, timestamps, and game name
 
 ### Validation Rules
-- **Groups**: 3-4 tiles, same number, all different colors
-- **Runs**: 3+ tiles, consecutive numbers, same color, no wrapping (12-13-1 invalid)
-- **Initial Meld**: Must total ≥30 points before first board play
-- **Jokers**: Take value of tile they represent, can be retrieved by replacement
+- **Groups**: 3-4 tiles, same number, different colors
+- **Runs**: 3+ consecutive numbers, same color, no wraparound
+- **Initial Meld**: must total at least 30 points
+- **Jokers**: resolved contextually inside a meld
 
 ### Key Methods
-```python  
-# Tile validation
-meld.validate_with_tiles(tile_instances)  # Raises InvalidMeldError
-meld.get_value(tile_instances)           # Returns point value
+```python
+meld.validate()
+meld.get_value()
 
-# Game setup
-pool, tiles = Pool.create_full_pool()    # 106 tiles per Rummikub rules
-player = Player(id=str(uuid4()), name="Alice")
+pool = Pool.create_full_pool()
+game = GameState.create_initialized_game(2)
 ```
 
 ## Troubleshooting
 
 ### Import Errors
-- Ensure you've run `pip install -e .[dev]`
-- Use `./scripts/pyrun.sh` instead of direct python commands
-- Check that you're in the repository root directory
+- Ensure the package is installed with dev dependencies
+- Prefer `./scripts/pyrun.sh` for quick exploration
+- Confirm you are running from the repository root
 
 ### Test Failures
-- Run tests individually: `pytest tests/models/model_validation_tests.py::TestClass::test_method -v`
-- Use `./scripts/pyrun.sh` to reproduce test scenarios interactively
+- Run the narrowest failing test file first
+- Use scenario fixtures in `tests/service/test_data/` to reproduce service behavior
 
-### Linting/Type Errors
-- Run `ruff check --fix .` for auto-fixes
-- For mypy errors, ensure proper type annotations and imports
-- All type annotations use forward references (`"ClassName"`) due to circular imports
+### Linting and Type Errors
+- Run `ruff check --fix .` for auto-fixable lint issues
+- Run `mypy src/` for type errors
 
 ## Notes
 
-- This repository follows incremental development: only the models layer is complete
-- No API server can be started yet - just model validation and testing  
-- Docker/Redis integration comes in later TODO items
-- Always validate changes with the pyrun script before committing
-- Coverage goal is 90%+ for implemented layers
+- The repository is no longer models-only; API, service, UI, and Docker support are already present
+- The main executable entry point is `main.py`
+- Coverage should continue moving toward 90%+ for implemented layers

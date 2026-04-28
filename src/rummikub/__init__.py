@@ -1,4 +1,5 @@
 """Rummikub package.
 
-Code will be added incrementally per TODO steps.
+This package contains the implemented model, engine, service, and API layers
+for the Rummikub game.
 """

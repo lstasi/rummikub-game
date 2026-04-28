@@ -1,60 +1,30 @@
 # UI Refresh Bug Fix
 
-## Issue
-When pressing "Draw Tile" or "Next Turn" buttons, the board and rack were not refreshing to show the updated game state.
+## Status
 
-## Root Cause
-The game UI relied on a polling mechanism (every 3 seconds) to update the game state. However, the polling logic only called `resetLocalState()` when the turn changed from another player to the current player. 
+Implemented in the current UI.
 
-When a player drew a tile or ended their turn:
-- The API call succeeded and updated the server state
-- The polling continued but didn't reset the local state because the turn had moved to the next player
-- The board and rack displayed stale data until the next polling cycle detected a turn change back to the current player
+## What Was Fixed
 
-## Solution
-Modified the `drawTile()` and `endTurn()` functions in `static/js/game.js` to immediately:
-1. Fetch the updated game state from the server after a successful action
-2. Update `serverGameState` with the fresh data
-3. Call `resetLocalState()` to synchronize local board and rack state
-4. Call `updateUI()` to refresh all UI elements
+The game page now reloads server state immediately after successful draw and play submissions.
 
-### Changes Made
+Current behavior in `static/js/game.js`:
+- `drawTile()` calls the draw endpoint, then reloads the game state, resets local state, and updates the UI.
+- `endTurn()` does the same after a successful play submission.
 
-**In `drawTile()` function:**
-```javascript
-async function drawTile() {
-    try {
-        await API.drawTile(gameId, playerId);
-        // Immediately reload game state to refresh board and rack
-        const response = await API.getGameState(gameId, playerId);
-        serverGameState = response;
-        resetLocalState();
-        updateUI();
-    } catch (error) {
-        showApiError(error, 'Failed to draw tile');
-    }
-}
-```
+This avoids waiting for the next polling cycle before the acting player sees the updated board and rack.
 
-**In `endTurn()` function (when playing tiles):**
-```javascript
-await API.playTiles(gameId, playerId, meldsToSend);
-// Immediately reload game state to refresh board and rack
-const response = await API.getGameState(gameId, playerId);
-serverGameState = response;
-resetLocalState();
-updateUI();
-```
+## Why The Fix Matters
 
-## Impact
-- Board and rack now update immediately when drawing a tile
-- Board and rack now update immediately when ending a turn
-- No longer dependent on the 3-second polling interval for these specific actions
-- Provides instant visual feedback to the player
+Without the immediate reload, the UI could show stale local state after the server had already accepted a move or draw.
 
-## Testing
-To verify the fix:
-1. Start a game with multiple players
-2. On a player's turn, click "Draw Tile" - the rack should immediately show the new tile
-3. Add some tiles to the board and click "Next Turn" - the board and rack should immediately reflect the changes
-4. The UI should update without waiting for the polling cycle
+## Remaining Adjacent Gaps
+
+- Winner display still depends on the unresolved `winner_player_id` bug documented in `doc/CODE_REVIEW.md`.
+- The UI still relies on polling for remote-player updates.
+
+## Verification Checklist
+
+1. Draw a tile and confirm the rack updates immediately.
+2. Submit a valid board change and confirm the board and rack update immediately.
+3. Confirm polling still keeps non-acting players synchronized afterward.

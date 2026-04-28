@@ -1,205 +1,126 @@
-# Game Service (Redis)
+# Game Service
 
-Service layer that provides persistence and concurrency control for multiplayer Rummikub games using Redis as the backend.
+The service layer in `src/rummikub/service/game_service.py` persists `GameState` objects to Redis and serializes access to per-game updates.
 
-## Overview
+## Responsibilities
 
-The service layer acts as a bridge between the stateless game engine and persistent storage, providing:
-- Game state persistence and retrieval
-- Concurrency control for multiplayer games
-- Game lifecycle management
+- Create, load, update, and delete games in Redis
+- Bridge the stateless engine with persistent storage
+- Return player-curated views that hide other players' racks
+- Apply a simple lock around state-changing operations
 
-## Redis Schema
+## Redis Keys
 
-### Key Naming Conventions
+The implementation uses two key shapes:
 
-Simple key structure for storing game states:
-
-```
-rummikub:games:{game_id}                    # Game state (JSON)
-rummikub:games:{game_id}:lock               # Game-level lock (STRING)
+```text
+rummikub:games:{game_id}
+rummikub:games:{game_id}:lock
 ```
 
-### Data Structures
+### Game State Key
 
-#### 1. Game State (`rummikub:games:{game_id}`)
-**Type**: JSON  
-**TTL**: 24 hours for completed games, no expiry for active games  
-**Content**: Serialized `GameState` object
+- Value: JSON string produced from `dataclasses.asdict()` plus manual UUID and datetime conversion
+- Expiry: no TTL for active games, 24 hours for completed games
 
-```json
-{
-  "game_id": "uuid-string",
-  "players": [
-    {
-      "id": "player-uuid",
-      "name": "Player Name",
-      "initial_meld_met": false,
-      "rack": {
-        "tile_ids": ["tile-uuid-1", "tile-uuid-2", ...]
-      }
-    }
-  ],
-  "current_player_index": 0,
-  "pool": {
-    "tile_ids": ["tile-uuid-x", "tile-uuid-y", ...]
-  },
-  "board": {
-    "melds": [
-      {
-        "id": "meld-uuid",
-        "kind": "GROUP",
-        "tiles": ["tile-uuid-a", "tile-uuid-b", "tile-uuid-c"]
-      }
-    ]
-  },
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:30:00Z",
-  "status": "IN_PROGRESS",
-  "winner_player_id": null,
-  "num_players": 4
-}
-```
+### Lock Key
 
-#### 2. Game Lock (`rummikub:games:{game_id}:lock`)
-**Type**: STRING  
-**TTL**: 5 seconds (auto-release on timeout)  
-**Content**: Session ID of lock holder
+- Value: service `session_id`
+- Expiry: 5 seconds
+- Purpose: serialize concurrent updates on a single game
 
-Used for exclusive locking during game state updates.
-
-## Concurrency Model
-
-### Simple Locking Strategy
-
-The service uses a simple lock-read-action-save-unlock pattern to handle concurrent game state modifications:
-
-1. **Lock**: Acquire exclusive lock on game
-2. **Read**: Read current game state from Redis
-3. **Action**: Apply game engine operations
-4. **Save**: Write updated game state to Redis
-5. **Unlock**: Release the exclusive lock
-
-If a lock is already held, the operation waits for the lock to be released.
-
-### Lock Implementation
+## Public Service Methods
 
 ```python
-def acquire_game_lock(game_id: str, session_id: str) -> bool:
-    """Acquire exclusive lock on game for updates. Blocks until available."""
-    lock_key = f"rummikub:games:{game_id}:lock"
-    while True:
-        acquired = redis.set(lock_key, session_id, nx=True, ex=5)
-        if acquired:
-            return True
-        time.sleep(0.1)  # Wait before retry
-
-def release_game_lock(game_id: str, session_id: str) -> bool:
-    """Release lock if owned by session."""
-    lock_key = f"rummikub:games:{game_id}:lock"
-    lua_script = """
-    if redis.call("GET", KEYS[1]) == ARGV[1] then
-        return redis.call("DEL", KEYS[1])
-    else
-        return 0
-    end
-    """
-    return redis.eval(lua_script, [lock_key], [session_id])
+GameService.create_game(num_players: int) -> GameState
+GameService.join_game(game_id: str, player_name: str) -> GameState
+GameService.get_game(game_id: str, player_name: str) -> GameState | None
+GameService.get_games() -> list[GameState]
+GameService.execute_turn(game_id: str, player_id: str, action: Action) -> GameState
+GameService.delete_game(game_id: str) -> None
 ```
 
-### Conflict Resolution
+Behavior notes:
+- `join_game()` returns the joining player's curated view.
+- Rejoining by name returns the existing player's curated view instead of creating a duplicate player.
+- `execute_turn()` accepts either `PlayTilesAction` or `DrawAction`.
 
-- **Lock contention**: Operations wait for lock release with automatic retry
-- **Lock timeouts**: Very short TTL (5 seconds) ensures quick recovery from failures
-- **Network failures**: Automatic lock cleanup prevents deadlocks
+## Serialization Model
 
-## Service API Contracts
+The service stores full `GameState` objects, not API response shapes.
 
-### Core Service Interface
+Important serialized fields include:
+- `game_id`
+- `game_name`
+- `players`
+- `current_player_index`
+- `pool`
+- `board`
+- `created_at`
+- `updated_at`
+- `status`
+- `winner_player_id`
+- internal `id`
+- `num_players`
 
-```python
-@dataclass
-class GameService:
-    """Main service interface for game management."""
-    
-    # Game Lifecycle
-    def create_game(self, num_players: int) -> GameState:
-        """Create new game and return state."""
-    
-    def join_game(self, game_id: str, player_name: str) -> GameState:
-        """Join game by game ID. Returns curated game state for the player.
-        If player already joined, returns their current game view."""
-    
-    def get_game(self, game_id: str, player_name: str) -> GameState | None:
-        """Retrieve curated game state for the specific player.
-        Only shows the player's own rack, other players show rack count only."""
-    
-    def get_games(self) -> list[GameState]:
-        """Retrieve list of all stored games."""
-    
-    # Game Actions
-    def execute_turn(self, game_id: str, player_id: str, action: Action) -> GameState:
-        """Execute player action (play tiles or draw). Includes player validation."""
-```
+Deserialization reconstructs:
+- `Player`
+- `Rack`
+- `Pool`
+- `Board`
+- `Meld`
+- `GameState`
 
-### Exception Mapping
+## Player-Curated Views
 
-Service-specific exceptions that wrap domain exceptions:
+The service hides other players' rack contents by rebuilding the player list:
 
-```python
-class ServiceError(Exception):
-    """Base service layer exception."""
+- The requesting player keeps the full rack.
+- Other players get an empty rack in the curated state.
+- The API response layer then exposes `rack_size` from the original state when available.
 
-class GameNotFoundError(ServiceError):
-    """Game ID not found in Redis."""
+This keeps Redis storage full-fidelity while still supporting privacy at the response layer.
 
-class ConcurrentModificationError(ServiceError):
-    """Game modified by another player."""
-```
+## Locking Model
 
-## Game Management Flows
+The lock implementation is intentionally simple:
 
-### Game Creation Flow
+1. Try `SET key value NX EX 5`.
+2. Retry every 100 ms for up to 50 attempts.
+3. On success, execute the update.
+4. Release with a Lua compare-and-delete script.
+5. Fall back to manual ownership check if Lua is unavailable.
 
-1. Service creates game via engine → `GameState`
-2. Service persists game state to Redis with game_id as key
-3. Return `GameState`
+If acquisition fails after 50 attempts, the service raises `ConcurrentModificationError`.
 
-### Join Game Flow
+## Data Flow
 
-1. Service calls join_game with game_id and player_name
-2. If player already joined, identify player and return curated game state
-3. If game already started, identify player by name and return curated game state
-4. Otherwise, add player to game and return curated game state
-5. Curated state shows only the player's rack, other players show rack count only
+### Create Game
 
-### Turn Execution Flow
+1. Engine creates a new `GameState`.
+2. Service serializes and stores it.
+3. API may then immediately call `join_game()` for the creator.
 
-1. Acquire game lock
-2. Retrieve current game state
-3. Execute action via engine (includes player validation)
-4. Persist updated game state
-5. Release game lock
-6. Return updated curated `GameState`
+### Join Game
 
-## Persistence Strategy
+1. Acquire lock.
+2. Load game.
+3. If the player already exists by name, return that view.
+4. Otherwise join through the engine and persist the update.
+5. Return the curated player view.
 
-### Data Consistency
+### Execute Turn
 
-- **Atomicity**: Use Redis transactions for multi-key updates
-- **Durability**: Configure Redis persistence (AOF + RDB)
-- **Lock safety**: Short TTL prevents deadlocks
+1. Acquire lock.
+2. Load game.
+3. Execute the action through the engine.
+4. Persist the new state.
+5. Return a curated player view.
 
-### Memory Management
+## Current Limitations
 
-- **TTL Policy**: Completed games expire after 24 hours
-- **Cleanup**: Automatic cleanup of expired games
+- `get_games()` uses Redis `KEYS`, which is acceptable for a small MVP but not ideal for large keyspaces.
+- The lock is a coarse per-game spin lock and is not suitable for high-contention workloads.
+- The service trusts the engine for board integrity; stronger post-action partition validation is still needed.
 
-## Implementation Notes
-
-- **DI-Friendly**: Service accepts Redis client interface for testing
-- **Synchronous**: All operations are synchronous for simplicity
-- **Type Safety**: Full type annotations with proper generics
-- **Error Handling**: Comprehensive exception hierarchy
-- **Testing**: Use `fakeredis` for unit tests, real Redis for integration
-- **Configuration**: Environment-based Redis connection settings
+See `doc/CODE_REVIEW.md` for the priority fixes.

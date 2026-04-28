@@ -1,523 +1,272 @@
 # API Interface
 
-REST API endpoints for the Rummikub game server, built with FastAPI. Provides game management, player actions, and real-time game state access.
-
-## Overview
-
-The API provides a stateless REST interface over the GameService layer, with automatic request/response validation, OpenAPI documentation, and comprehensive error handling.
-
-### API Characteristics
-- **HTTP/REST**: Standard REST patterns with JSON payloads
-- **Stateless**: No server-side session management
-- **Validation**: Automatic request/response validation via Pydantic models
-- **Documentation**: Auto-generated OpenAPI spec at `/docs`
-- **Error Handling**: Structured error responses with proper HTTP status codes
-- **Authentication**: HTTP Basic Auth required for player-specific endpoints (player name as username)
+This document describes the FastAPI contract currently exposed by `src/rummikub/api/main.py`.
 
 ## Base Configuration
 
-```
-Base URL: http://localhost:8090/api/v1
-Content-Type: application/json
-```
+- Base URL: `http://localhost:8090/api/v1`
+- OpenAPI docs: `http://localhost:8090/docs`
+- Content type: `application/json`
 
 ## Authentication
 
-Some endpoints require HTTP Basic Authentication to identify the player making the request.
+The API currently uses HTTP Basic Auth for game discovery and join flows.
 
-**Basic Auth Format:**
-- Username: Player name
-- Password: Any value (not validated)
+- Username: player name
+- Password: accepted but not validated
 
-**Example:**
-```
-Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
-```
-(Base64 encoded "Alice:password")
+Example header:
 
-**Endpoints Requiring Authentication:**
-- `POST /games` - Create and auto-join game
-- `GET /games/my-games` - Get player's games
-- `POST /games/{game_id}/players` - Join game (if authentication is added)
-- `GET /games/{game_id}/players/{player_id}` - Get game state (if authentication is added)
-- `POST /games/{game_id}/players/{player_id}/actions/*` - Execute actions (if authentication is added)
-
-**Endpoints Not Requiring Authentication:**
-- `GET /games` - List all games (public)
-- `DELETE /games/{game_id}` - Delete game
-
-## Endpoints
-
-### 1. Get Games List
-
-**GET `/games`**
-
-Retrieve a list of all available games.
-
-**Query Parameters:**
-- `status` (optional): Filter games by status
-  - Valid values: `waiting_for_players`, `in_progress`, `completed`
-  - If omitted or invalid, returns all games
-
-**Example Requests:**
-```
-GET /games                                    # All games
-GET /games?status=waiting_for_players        # Only games waiting for players
-GET /games?status=in_progress                # Only games in progress
-```
-
-**Response: 200 OK**
-```json
-{
-  "games": [
-    {
-      "game_id": "123e4567-e89b-12d3-a456-426614174000",
-      "status": "waiting_for_players",
-      "num_players": 2,
-      "players": [
-        {
-          "id": "player-123",
-          "name": "Alice",
-          "initial_meld_met": false,
-          "rack_size": 14
-        }
-      ],
-      "current_player_index": 0,
-      "created_at": "2024-01-01T12:00:00Z",
-      "updated_at": "2024-01-01T12:05:00Z"
-    }
-  ]
-}
-```
-
-### 2. Create Game
-
-**POST `/games`**
-
-Create a new game with specified number of players and automatically join the creator.
-
-**Authentication:** Required (Basic Auth with player name)
-
-**Request Headers:**
-```
+```text
 Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
 ```
 
-**Request Body**
-```json
-{
-  "num_players": 4
-}
-```
+### Endpoints Requiring Basic Auth
 
-**Response: 200 OK**
+- `GET /games`
+- `GET /games/my-games`
+- `POST /games`
+- `POST /games/{game_id}/players`
+
+### Endpoints Without Caller Authentication
+
+- `GET /games/{game_id}/players/{player_id}`
+- `POST /games/{game_id}/players/{player_id}/actions/play`
+- `POST /games/{game_id}/players/{player_id}/actions/draw`
+- `DELETE /games/{game_id}`
+- `GET /health`
+
+This is a known security problem, not a recommended design. See `doc/CODE_REVIEW.md`.
+
+## Response Shape
+
+Most game endpoints return the same `GameStateResponse` payload.
+
 ```json
 {
-  "game_id": "123e4567-e89b-12d3-a456-426614174000",
+  "game_id": "uuid-string",
+  "game_name": "Battle of Tokyo",
   "status": "waiting_for_players",
   "num_players": 4,
   "players": [
     {
-      "id": "player-123",
+      "id": "player-uuid",
       "name": "Alice",
       "initial_meld_met": false,
       "rack": {
-        "tiles": ["7ra", "12kb", "ja", ...]
-      }
-    }
-  ],
-  "current_player_index": 0,
-  "pool_size": 92,
-  "board": {
-    "melds": []
-  },
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:00:00Z",
-  "winner_player_id": null
-}
-```
-
-**Notes:**
-- The authenticated player is automatically joined to the game after creation
-- Response includes the creator's full rack
-- Pool size reflects tiles distributed to the creator (106 - 14 = 92)
-
-**Errors**
-- `400 Bad Request`: Invalid num_players (must be 2-4)
-- `401 Unauthorized`: Missing or invalid authentication
-
-### 3. Get My Games
-
-**GET `/games/my-games`**
-
-Retrieve a list of games where the authenticated player has joined.
-
-**Authentication:** Required (Basic Auth with player name)
-
-**Request Headers:**
-```
-Authorization: Basic QWxpY2U6cGFzc3dvcmQ=
-```
-
-**Response: 200 OK**
-```json
-{
-  "games": [
-    {
-      "game_id": "123e4567-e89b-12d3-a456-426614174000",
-      "status": "in_progress",
-      "num_players": 4,
-      "players": [
-        {
-          "id": "player-123",
-          "name": "Alice",
-          "initial_meld_met": false,
-          "rack_size": 14
-        },
-        {
-          "id": "player-456",
-          "name": "Bob",
-          "initial_meld_met": true,
-          "rack_size": 10
-        }
-      ],
-      "current_player_index": 0,
-      "pool_size": 45,
-      "board": {
-        "melds": [
-          {
-            "id": "meld-789",
-            "kind": "group",
-            "tiles": ["7ra", "7kb", "7bo"]
-          }
-        ]
+        "tiles": ["7ra", "12kb", "ja"]
       },
-      "created_at": "2024-01-01T12:00:00Z",
-      "updated_at": "2024-01-01T12:15:00Z",
-      "winner_player_id": null
-    }
-  ]
-}
-```
-
-**Notes:**
-- Returns only games where the authenticated player (from Basic Auth username) is in the players list
-- Useful for showing a "My Games" section in the UI
-- Returns empty list if player has not joined any games
-- Response format is same as `GET /games` but filtered by player
-
-**Errors**
-- `401 Unauthorized`: Missing or invalid authentication
-
-### 4. Join Game
-
-**POST `/games/{game_id}/join`**
-
-Join an existing game as a player.
-
-**Path Parameters**
-- `game_id`: UUID string of the game to join
-
-**Request Body**
-```json
-{
-  "player_name": "Alice"
-}
-```
-
-**Response: 200 OK**
-```json
-{
-  "game_id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "in_progress",
-  "num_players": 4,
-  "players": [
-    {
-      "id": "player-123",
-      "name": "Alice", 
-      "initial_meld_met": false,
-      "rack": {
-        "tiles": ["7ra", "12kb", "ja", ...]
-      }
-    },
-    {
-      "id": "player-456",
-      "name": "Bob",
-      "initial_meld_met": false,
-      "rack_size": 14
+      "rack_size": null
     }
   ],
   "current_player_index": 0,
-  "pool_size": 78,
+  "pool_size": 50,
   "board": {
     "melds": []
   },
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:05:00Z",
+  "created_at": "2026-04-28T12:00:00",
+  "updated_at": "2026-04-28T12:00:00",
   "winner_player_id": null
 }
 ```
 
-**Notes**
-- Response shows full rack for the joining player, only rack_size for others
-- If player already joined, returns current game state for that player
-- Game starts automatically when all player slots are filled
+Notes:
+- Only joined players are included in `players`.
+- The requesting player gets `rack`; other players get `rack_size`.
+- `game_name` is generated server-side.
+- `winner_player_id` exists in the schema but is not reliably populated yet.
 
-**Errors**
-- `404 Not Found`: Game not found
-- `409 Conflict`: Game is full or already completed
+## Endpoints
 
-### 5. Get Game State
+### GET /health
 
-**GET `/games/{game_id}/players/{player_name}`**
+Health endpoint.
 
-Get current game state from the perspective of a specific player.
+Response:
 
-**Path Parameters**
-- `game_id`: UUID string of the game
-- `player_name`: Name of the player requesting the state
-
-**Response: 200 OK**
 ```json
 {
-  "game_id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "in_progress",
-  "num_players": 4,
-  "players": [
-    {
-      "id": "player-123",
-      "name": "Alice",
-      "initial_meld_met": false,
-      "rack": {
-        "tiles": ["7ra", "12kb", "ja", ...]
-      }
-    },
-    {
-      "id": "player-456", 
-      "name": "Bob",
-      "initial_meld_met": true,
-      "rack_size": 10
-    }
-  ],
-  "current_player_index": 1,
-  "pool_size": 45,
-  "board": {
-    "melds": [
-      {
-        "id": "meld-789",
-        "kind": "group",
-        "tiles": ["7ra", "7kb", "7bo"]
-      }
-    ]
-  },
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:15:00Z",
-  "winner_player_id": null
+  "status": "healthy"
 }
 ```
 
-**Notes**
-- Shows full rack only for the requesting player
-- Other players show only rack_size for privacy
+### GET /games
 
-**Errors**
-- `404 Not Found`: Game not found or player not in game
+List games visible to the authenticated player.
 
-### 6. Execute Turn - Play Tiles
+Behavior:
+- Requires Basic Auth.
+- Excludes games where the authenticated player has already joined.
+- Accepts optional `status` query parameter.
+- Invalid `status` values are ignored and the full result set is returned.
 
-**POST `/games/{game_id}/players/{player_id}/actions/play`**
+Example:
 
-Execute a play tiles action (place new melds and/or rearrange existing ones).
+```http
+GET /api/v1/games?status=waiting_for_players
+```
 
-**Path Parameters**
-- `game_id`: UUID string of the game
-- `player_id`: UUID string of the player taking the action
+### GET /games/my-games
 
-**Request Body**
+List games where the authenticated player is already a participant.
+
+Behavior:
+- Requires Basic Auth.
+- Uses the Basic Auth username as the player name filter.
+
+### POST /games
+
+Create a new game and immediately join the authenticated player.
+
+Request body:
+
+```json
+{
+  "num_players": 2
+}
+```
+
+Behavior:
+- Requires Basic Auth.
+- Valid `num_players` values are `2`, `3`, or `4`.
+- The response contains the creator with a visible rack.
+- The game remains `waiting_for_players` until all seats are filled.
+
+### POST /games/{game_id}/players
+
+Join an existing game using the Basic Auth username.
+
+Behavior:
+- Requires Basic Auth.
+- Request body is ignored by the current implementation.
+- If the player already joined, the endpoint returns that player's current curated view.
+- When the last open seat is filled, the game automatically transitions to `in_progress`.
+
+### GET /games/{game_id}/players/{player_id}
+
+Return a curated game-state view for the supplied `player_id`.
+
+Behavior:
+- Does not currently require auth.
+- If `player_id` exists in the game, that player's rack is returned and all others are hidden to counts.
+- Returns `403` if the player is not in the game and `404` if the game does not exist.
+
+### POST /games/{game_id}/players/{player_id}/actions/play
+
+Submit a full board end-state for a play action.
+
+Request body:
+
 ```json
 {
   "melds": [
     {
-      "id": "meld-new-1",
+      "id": "10ka-10ra-10ba",
       "kind": "group",
-      "tiles": ["7ra", "7kb", "7bo"]
-    },
-    {
-      "id": "meld-existing-789", 
-      "kind": "run",
-      "tiles": ["10ka", "11ka", "12ka", "13ka"]
+      "tiles": ["10ka", "10ra", "10ba"]
     }
   ]
 }
 ```
 
-**Response: 200 OK**
-```json
-{
-  "game_id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "in_progress",
-  "players": [...],
-  "current_player_index": 2,
-  "pool_size": 45,
-  "board": {
-    "melds": [
-      {
-        "id": "meld-new-1",
-        "kind": "group", 
-        "tiles": ["7ra", "7kb", "7bo"]
-      },
-      {
-        "id": "meld-existing-789",
-        "kind": "run",
-        "tiles": ["10ka", "11ka", "12ka", "13ka"]
-      }
-    ]
-  },
-  "updated_at": "2024-01-01T12:16:00Z",
-  "winner_player_id": "player-123"
-}
-```
+Behavior:
+- Does not currently require auth.
+- `melds` represents the complete board after the move.
+- The engine validates turn ownership, tile ownership for newly played tiles, meld validity, and the initial meld threshold.
+- The turn advances automatically on success.
 
-**Notes**
-- `melds` array represents the complete board state after the action
-- Engine validates tile ownership, meld validity, and initial meld requirements
-- Turn advances automatically after successful play
-- Game status changes to "completed" if player wins
+Known limitation:
+- The server does not yet fully validate board tile conservation after replacement. See `doc/CODE_REVIEW.md`.
 
-**Errors**
-- `400 Bad Request`: Invalid meld formations or action structure
-- `403 Forbidden`: Not player's turn or player not in game  
-- `404 Not Found`: Game not found
-- `422 Unprocessable Entity`: Rule violations (see error details below)
+### POST /games/{game_id}/players/{player_id}/actions/draw
 
-### 7. Execute Turn - Draw Tile
+Draw one random tile from the pool for the supplied player.
 
-**POST `/games/{game_id}/players/{player_id}/actions/draw`**
+Request body:
 
-Draw a tile from the pool.
-
-**Path Parameters**  
-- `game_id`: UUID string of the game
-- `player_id`: UUID string of the player taking the action
-
-**Request Body**
 ```json
 {}
 ```
 
-**Response: 200 OK**
+Behavior:
+- Does not currently require auth.
+- Draw succeeds only on the player's turn.
+- The turn advances automatically on success.
+
+### DELETE /games/{game_id}
+
+Delete a game by ID.
+
+Behavior:
+- No authentication is currently required.
+- Returns `{ "status": "deleted", "game_id": ... }` on success.
+
+## Error Model
+
+Errors are returned as:
+
 ```json
 {
-  "game_id": "123e4567-e89b-12d3-a456-426614174000", 
-  "status": "in_progress",
-  "players": [
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable message",
+    "details": null
+  }
+}
+```
+
+Current mappings:
+
+- `GAME_NOT_FOUND` -> `404`
+- `CONCURRENT_MODIFICATION` -> `503`
+- `GAME_NOT_STARTED` -> `400`
+- `GAME_COMPLETED` -> `400`
+- `PLAYER_NOT_IN_GAME` -> `403`
+- `NOT_PLAYER_TURN` -> `403`
+- `TILE_NOT_OWNED` -> `422`
+- `INVALID_MELD` -> `422`
+- `INVALID_BOARD_STATE` -> `422`
+- `INSUFFICIENT_INITIAL_MELD` -> `422`
+- `POOL_EMPTY` -> `400`
+- `INVALID_GAME_STATE` -> `400`
+- Unhandled exceptions -> `500`
+
+## Request Models
+
+### CreateGameRequest
+
+```json
+{
+  "num_players": 2
+}
+```
+
+### PlayTilesRequest
+
+```json
+{
+  "melds": [
     {
-      "id": "player-123",
-      "name": "Alice",
-      "initial_meld_met": false,
-      "rack": {
-        "tiles": ["7ra", "12kb", "ja", "3bo", ...]
-      }
+      "id": "string",
+      "kind": "group",
+      "tiles": ["7ra", "7ba", "7ka"]
     }
-  ],
-  "current_player_index": 1,
-  "pool_size": 44,
-  "board": {
-    "melds": [...]
-  },
-  "updated_at": "2024-01-01T12:17:00Z"
+  ]
 }
 ```
 
-**Notes**
-- Adds one random tile from pool to player's rack
-- Turn advances automatically after successful draw
-
-**Errors**
-- `400 Bad Request`: Pool is empty
-- `403 Forbidden`: Not player's turn or player not in game
-- `404 Not Found`: Game not found
-
-### 8. Delete Game
-
-**DELETE `/games/{game_id}`**
-
-Delete a game by game ID. This permanently removes the game from the system.
-
-**Authentication:** Not required
-
-**Path Parameters**
-- `game_id`: UUID string of the game to delete
-
-**Response: 200 OK**
-```json
-{
-  "status": "deleted",
-  "game_id": "123e4567-e89b-12d3-a456-426614174000"
-}
-```
-
-**Notes**
-- No authentication required to delete a game
-- Can delete games in any state (waiting, in progress, or completed)
-- Deletion is permanent and cannot be undone
-- All game data including player states and board state are removed
-
-**Errors**
-- `404 Not Found`: Game not found
-
-**Example:**
-```bash
-# Delete a game
-curl -X DELETE http://localhost:8090/api/v1/games/123e4567-e89b-12d3-a456-426614174000
-```
-
-## Data Models
-
-### GameState Schema
+### DrawTileRequest
 
 ```json
-{
-  "game_id": "string (UUID)",
-  "status": "waiting_for_players" | "in_progress" | "completed",
-  "num_players": "integer (2-4)",
-  "players": ["PlayerState"],
-  "current_player_index": "integer",
-  "pool_size": "integer",
-  "board": "BoardState",
-  "created_at": "string (ISO 8601)",
-  "updated_at": "string (ISO 8601)", 
-  "winner_player_id": "string (UUID) | null"
-}
+{}
 ```
 
-### PlayerState Schema
+## Notes For Client Authors
 
-```json
-{
-  "id": "string (UUID)",
-  "name": "string",
-  "initial_meld_met": "boolean",
-  "rack": "RackState | null",
-  "rack_size": "integer | null"
-}
-```
-
-**Notes**
-- `rack` is populated only for the requesting player
-- `rack_size` is populated for other players (privacy)
-
-### RackState Schema
-
-```json
-{
-  "tiles": ["string (tile IDs)"]
-}
-```
-
-### BoardState Schema
-
-```json
+- Tile IDs are plain strings, not nested tile objects.
+- Joined-player arrays can be shorter than `num_players` because unjoined seats are omitted.
+- The API does not currently return `current_player_name`; clients must derive it from `players[current_player_index]` when the player list is complete enough.
+- Treat `winner_player_id` as best-effort until the engine bug is fixed.
 {
   "melds": ["MeldState"]
 }

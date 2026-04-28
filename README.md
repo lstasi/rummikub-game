@@ -1,90 +1,107 @@
 # Rummikub Game
 
-Python-based Rummikub game with Redis backend, FastAPI API, and pytest tests. Designed for containerized runs via Docker Compose.
+Rummikub Game is a Python implementation of the game with a dataclass-based domain model, a rule-enforcing engine, a Redis-backed service layer, a FastAPI API, and a static browser UI.
 
-## Status
+## Current Status
 
 [![CI](https://github.com/lstasi/rummikub-game/workflows/CI/badge.svg)](https://github.com/lstasi/rummikub-game/actions/workflows/ci.yml)
 [![Docker](https://github.com/lstasi/rummikub-game/workflows/Docker/badge.svg)](https://github.com/lstasi/rummikub-game/actions/workflows/docker.yml)
 
-Completed:
-- Copilot instructions with strict workflow (`COPILOT_INSTRUCTIONS.md`)
-- Base project scaffolding (`src/`, `tests/`, `doc/`, `pyproject.toml`, `pytest.ini`)
-- Domain model definitions documented (`doc/MODELS.md`)
-- Models package implementation (`src/rummikub/models/`) with full Pydantic validation
+The repository already includes:
+- Deterministic tile IDs and full pool/rack/board/game-state models
+- Game-engine validation for turns, melds, initial melds, draws, and wins
+- Redis persistence with per-game locking
+- FastAPI endpoints for game discovery, join flow, game state, play, draw, delete, and health
+- Static HTML/CSS/JavaScript pages for home, game, and win flows
+- Docker packaging and GitHub Actions workflows
 
-Pending (see `TODO.md` for the full list):
-- Unit tests for models
-- Define and implement engine + tests
-- Define and implement service (Redis) + tests
-- Define and implement API (FastAPI) + tests
-- Dockerfile + docker-compose
-- UI definition and MVP
+Open defects and review findings are tracked in `doc/CODE_REVIEW.md`.
+Remaining work is tracked in `TODO.md`.
 
-## Repo Structure
+## Quick Start
 
-- `src/` — Python package code (to be implemented incrementally)
-- `tests/` — Pytest suites
-- `doc/` — Design docs (architecture, models, engine, service, API, UI, deployment, testing)
-- `COPILOT_INSTRUCTIONS.md` — How to work on this repo step-by-step
-- `RUMMIKUB_RULES.md` — Game rules reference
-- `TODO.md` — Pending tasks with checkboxes
+### Local Development
 
-## Technology
-
-- Python >= 3.13, Pydantic, FastAPI, Redis
-- pytest for testing
-- Docker + docker-compose for local runs
-- GitHub Actions for CI/CD
-
-## Features
-
-### Multi-Language Support
-The UI supports three languages:
-- **English (en)** - Default language
-- **Portuguese (pt)** - Brazilian Portuguese
-- **Spanish (es)** - Spanish
-
-To use a specific language, add the `lang` query parameter to the URL:
-- English: `http://localhost:8000/?lang=en` (or just `http://localhost:8000/`)
-- Portuguese: `http://localhost:8000/?lang=pt`
-- Spanish: `http://localhost:8000/?lang=es`
-
-The language parameter is automatically preserved when navigating between pages.
-
-## Development
-
-### Running Tests Locally
 ```bash
-# Install dependencies
 pip install -e .[dev]
-
-# Run tests
-pytest
-
-# Run tests with coverage
-pytest --cov=src --cov-report=term-missing
+docker compose up redis -d
+python main.py --reload
 ```
 
-### Continuous Integration
-The project automatically runs tests on:
-- Push to main branch
-- Pull requests to main branch  
-- Python version: 3.13
+Application URLs:
+- UI: `http://localhost:8090/`
+- API root: `http://localhost:8090/api/v1`
+- OpenAPI docs: `http://localhost:8090/docs`
+- Health check: `http://localhost:8090/api/v1/health`
 
-See `.github/workflows/ci.yml` for the complete CI configuration.
+### Docker Compose
 
-### Docker Image Builds
-Docker images are automatically built and published to GitHub Container Registry:
-- Push to main or staging branch → `latest` tag (main) or `staging` tag
-- Version tags (v*) → versioned tags (e.g., v1.0.0, 1.0, 1)
-- **Multi-architecture support**: Images are built for both `linux/amd64` (x86_64) and `linux/arm64` (ARM 64-bit) platforms
+```bash
+docker compose up -d
+docker compose logs -f rummikub
+```
 
-See `.github/workflows/docker.yml` for the Docker build configuration and `doc/DEPLOYMENT.md` for usage instructions.
+This starts:
+- `rummikub` on port `8090`
+- `redis` on port `6379`
 
-## Contributing Workflow
+## Authentication Model
 
-Always follow the loop for each task:
-1) Propose changes → 2) Update docs → 3) Implement minimal code → 4) Add/Update tests → 5) Run quality gates and summarize
+The current UI and API use HTTP Basic Auth for discovery and join flows.
 
-If something is out of scope for the current task, add it to `TODO.md` instead of implementing.
+- Username: player name
+- Password: accepted but not validated
+
+Protected endpoints today:
+- `GET /api/v1/games`
+- `GET /api/v1/games/my-games`
+- `POST /api/v1/games`
+- `POST /api/v1/games/{game_id}/players`
+
+Player-scoped state and action routes currently rely on `player_id` in the path instead of binding the caller identity. That is a known security defect documented in `doc/CODE_REVIEW.md`.
+
+## Project Structure
+
+- `src/rummikub/models/`: tiles, melds, game state, actions, exceptions, name generation
+- `src/rummikub/engine/`: gameplay rules and turn execution
+- `src/rummikub/service/`: Redis-backed persistence and locking
+- `src/rummikub/api/`: FastAPI routes, API models, dependencies, exception mapping
+- `static/`: HTML, CSS, and JavaScript UI assets
+- `tests/`: pytest suites for models, engine, service, and API
+- `doc/`: architecture, contracts, deployment, testing, review notes
+
+## Development Commands
+
+Quality gates used by the repository:
+
+```bash
+ruff check .
+mypy src/
+pytest tests/ -v --cov=src --cov-report=term-missing
+```
+
+Useful local commands:
+
+```bash
+./scripts/pyrun.sh -i
+./scripts/pyrun.sh -f path/to/script.py
+./scripts/pyrun.sh "from rummikub.models import TileUtils; print(TileUtils.create_full_tile_set()[:5])"
+```
+
+## Documentation Map
+
+- `doc/ARCHITECTURE.md`: current system layout and runtime data flow
+- `doc/MODELS.md`: domain model and tile ID format
+- `doc/ENGINE.md`: engine responsibilities and move flow
+- `doc/SERVICE.md`: Redis persistence and locking behavior
+- `doc/API.md`: REST contract and error model
+- `doc/UI.md`: shipped UI flows and current front-end limitations
+- `doc/DEPLOYMENT.md`: Docker, local run, and CI/CD usage
+- `doc/TESTING.md`: test suite layout and quality gates
+- `doc/CODE_REVIEW.md`: prioritized bug list and review findings
+
+## Notes
+
+- Python package metadata requires Python `>=3.11`.
+- CI and the Docker image use Python `3.13`.
+- The UI supports English, Portuguese, and Spanish button labels through `static/js/i18n.js`, but translation coverage is not complete yet.

@@ -1,301 +1,167 @@
 # Deployment
 
-This document describes how to deploy and run the Rummikub game application using Docker and Docker Compose.
+This repository can be run locally, through Docker Compose, or from the published GitHub Container Registry image.
 
-## Prerequisites
+## Runtime Targets
 
-- Docker Engine 20.10+
-- Docker Compose 2.0+
+### Combined Application
 
-## Quick Start
+`main.py` creates a single FastAPI app that serves:
+- the static UI at `/`
+- the API under `/api/v1`
+- OpenAPI docs at `/docs`
 
-To run the complete application stack (API + Redis):
+### Redis Dependency
+
+Redis is required for any stateful API operation.
+
+Default connection string:
+
+```text
+redis://localhost:6379/0
+```
+
+## Local Development
+
+Recommended flow:
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd rummikub-game
+pip install -e .[dev]
+docker compose up redis -d
+python main.py --reload
+```
 
-# Start all services
+Useful flags:
+
+```bash
+python main.py --host 0.0.0.0 --port 8090 --reload
+python main.py --skip-redis-check
+```
+
+`main.py` performs a Redis connectivity check unless `--skip-redis-check` is supplied.
+
+## Docker Compose
+
+### Full Stack
+
+`docker-compose.yml` starts:
+- `redis` using `redis:7-alpine`
+- `rummikub` built from the local `Dockerfile`
+
+Run it with:
+
+```bash
 docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop all services
-docker compose down
+docker compose logs -f rummikub
 ```
 
-The API will be available at:
-- **API Endpoints**: http://localhost:8090
-- **API Documentation**: http://localhost:8090/docs
-- **ReDoc Documentation**: http://localhost:8090/redoc
-- **Health Check**: http://localhost:8090/health
+Ports:
+- UI and API: `8090`
+- Redis: `6379`
 
-## Using Pre-built Docker Images
+Health checks:
+- API: `http://localhost:8090/api/v1/health`
+- Redis: `redis-cli ping`
 
-Pre-built Docker images are automatically published to GitHub Container Registry (ghcr.io) on each push to the main branch and for tagged releases.
+### App-Only Compose
 
-### Pull and Run Pre-built Image
+`docker-compose.app.yml` runs only the application container and expects an external Redis instance.
 
-```bash
-# Pull the latest image (automatically selects correct architecture)
-docker pull ghcr.io/lstasi/rummikub-game:latest
-
-# Run with Redis
-docker run -d --name rummikub-redis redis:7-alpine
-docker run -d --name rummikub-api -p 8090:8090 \
-  -e REDIS_URL=redis://rummikub-redis:6379/0 \
-  --link rummikub-redis:redis \
-  ghcr.io/lstasi/rummikub-game:latest
-```
-
-**Note**: Images are built for both `linux/amd64` and `linux/arm64` architectures. Docker will automatically pull the correct image for your platform.
-
-### Using Tagged Versions
+Example:
 
 ```bash
-# Pull a specific version
-docker pull ghcr.io/lstasi/rummikub-game:v1.0.0
-
-# Or use major/minor tags
-docker pull ghcr.io/lstasi/rummikub-game:1.0
-docker pull ghcr.io/lstasi/rummikub-game:1
-```
-
-### Automated Builds
-
-Docker images are automatically built and pushed by GitHub Actions:
-- **Workflow**: `.github/workflows/docker.yml`
-- **Triggers**: Push to main or staging branch, tag creation (v*)
-- **Registry**: GitHub Container Registry (ghcr.io)
-- **Platforms**: Multi-architecture support
-  - `linux/amd64` - x86_64 architecture (standard Intel/AMD)
-  - `linux/arm64` - ARM 64-bit architecture (Apple Silicon, AWS Graviton, Raspberry Pi 4+)
-- **Tags**: 
-  - `latest` - Latest build from main branch
-  - `staging` - Latest build from staging branch
-  - `v{version}` - Specific version tags (e.g., v1.0.0)
-  - `{major}.{minor}` - Major/minor version tags (e.g., 1.0)
-  - `{major}` - Major version tag (e.g., 1)
-
-## Services
-
-### API Service (`api`)
-
-The FastAPI application serving the game REST endpoints.
-
-- **Image**: Built from local Dockerfile
-- **Port**: 8090 (mapped to host port 8090)
-- **Health Check**: GET /health endpoint
-- **Dependencies**: Redis service
-
-### Redis Service (`redis`)
-
-Redis server for game state persistence.
-
-- **Image**: redis:7-alpine
-- **Port**: 6379 (mapped to host port 6379)
-- **Data Persistence**: Uses named volume `redis_data`
-- **Configuration**: Append-only file (AOF) enabled
-- **Health Check**: Redis PING command
-
-## Environment Variables
-
-### API Service
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
-
-### Customization
-
-Create a `.env` file in the project root to override defaults:
-
-```bash
-# .env file example
-REDIS_URL=redis://redis:6379/1
-```
-
-Then use:
-```bash
-docker compose --env-file .env up
-```
-
-## App-Only Deployment
-
-For environments where Redis is already deployed separately (e.g., existing infrastructure), use the app-only compose file:
-
-```bash
-# Set Redis URL to your existing Redis instance
-export REDIS_URL=redis://your-redis-host:6379/0
-
-# Start only the API service
-docker compose -f docker-compose.app.yml up -d
-
-# Or provide Redis URL inline
 REDIS_URL=redis://your-redis-host:6379/0 docker compose -f docker-compose.app.yml up -d
 ```
 
-The `docker-compose.app.yml` file deploys only the API service without Redis, assuming Redis is already available.
+## Docker Image
 
-## Development Setup
+The `Dockerfile`:
+- uses `python:3.13-slim`
+- installs dependencies from `requirements.txt`
+- copies `src/`, `static/`, `scripts/`, and `main.py`
+- exposes port `8090`
+- runs `python main.py --host 0.0.0.0 --port 8090`
 
-### Option 1: Using main.py (Recommended)
+Container health check:
 
-For local development with hot-reload:
-
-```bash
-# Install dependencies locally
-pip install -e .[dev]
-
-# Run Redis in Docker
-docker compose up redis -d
-
-# Run API locally with hot reload (defaults to port 8090)
-python main.py --reload
-
-# Or run on a different port
-python main.py --reload --port 8080
-
-# Or allow external connections
-python main.py --reload --host 0.0.0.0
+```text
+GET /api/v1/health
 ```
 
-The `main.py` script provides:
-- Automatic Redis connection checking
-- Hot reload support for development
-- Configurable host and port (defaults to 8090)
-- Helpful error messages and setup instructions
+## Published Images
 
-### Option 2: Using uvicorn directly
+GitHub Actions publishes images to `ghcr.io/lstasi/rummikub-game`.
 
-```bash
-# Install dependencies locally
-pip install -e .[dev]
+Current workflow behavior from `.github/workflows/docker.yml`:
+- Build on pushes to `main` and `staging`
+- Build on tags matching `v*`
+- Publish `latest` for the default branch
+- Publish multi-arch images for `linux/amd64` and `linux/arm64`
 
-# Run Redis in Docker
-docker compose up redis -d
-
-# Run API locally with auto-reload
-REDIS_URL=redis://localhost:6379/0 uvicorn rummikub.api:app --reload --host 0.0.0.0 --port 8090
-```
-
-## Production Considerations
-
-### Security
-
-1. **CORS Configuration**: Update CORS settings in `src/rummikub/api/main.py`:
-   ```python
-   app.add_middleware(
-       CORSMiddleware,
-       allow_origins=["https://yourdomain.com"],  # Specify allowed origins
-       allow_credentials=True,
-       allow_methods=["GET", "POST"],  # Restrict methods
-       allow_headers=["*"],
-   )
-   ```
-
-2. **Redis Security**: Configure Redis authentication:
-   ```yaml
-   # docker compose.yml
-   redis:
-     command: redis-server --requirepass yourpassword --appendonly yes
-   ```
-
-3. **Environment Variables**: Use Docker secrets or external secret management.
-
-### Scaling
-
-To run multiple API instances:
+Example pull:
 
 ```bash
-docker compose up --scale api=3
+docker pull ghcr.io/lstasi/rummikub-game:latest
 ```
 
-Consider using a load balancer (nginx, traefik) for production deployments.
+## Environment Variables
 
-### Monitoring
+### Application
 
-Health check endpoints are configured for both services:
-- API: `GET /health`
-- Redis: `redis-cli ping`
+| Variable | Default | Purpose |
+|---|---|---|
+| `REDIS_URL` | `redis://redis:6379/0` in Docker, `redis://localhost:6379/0` locally | Redis connection string |
+| `USE_FAKE_REDIS` | `false` | Testing-only toggle in API dependency code |
 
-Use these for orchestrator health checks (Kubernetes, Docker Swarm).
+## CI/CD
+
+### CI Workflow
+
+`.github/workflows/ci.yml`:
+- runs on pushes and PRs to `main`
+- starts Redis as a service
+- installs the package with dev dependencies
+- runs pytest with coverage
+
+### Docker Workflow
+
+`.github/workflows/docker.yml`:
+- logs into GHCR
+- builds multi-architecture images
+- pushes branch and tag-derived tags
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Port Already in Use**:
-   ```bash
-   # Check what's using the port
-   lsof -i :8090
-   # Kill the process or change the port mapping
-   docker compose -f docker compose.yml up
-   ```
-
-2. **Redis Connection Failed**:
-   ```bash
-   # Check Redis service status
-   docker compose ps redis
-   # View Redis logs
-   docker compose logs redis
-   ```
-
-3. **API Service Won't Start**:
-   ```bash
-   # View API logs
-   docker compose logs api
-   # Rebuild the image
-   docker compose build api
-   ```
-
-### Logs and Debugging
+### Redis Connection Failures
 
 ```bash
-# View all logs
-docker compose logs
-
-# Follow logs in real-time
-docker compose logs -f
-
-# View specific service logs
-docker compose logs api
+docker compose ps redis
 docker compose logs redis
-
-# Execute commands in running containers
-docker compose exec api bash
-docker compose exec redis redis-cli
 ```
 
-### Data Management
+### App Logs
 
 ```bash
-# Backup Redis data
-docker compose exec redis redis-cli BGSAVE
+docker compose logs -f rummikub
+```
 
-# View Redis data volume
-docker volume inspect rummikub-game_redis_data
+### Clean Restart
 
-# Remove all data (destructive)
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+### Remove Redis Data
+
+```bash
 docker compose down -v
 ```
 
-## Testing in Docker
+## Production Notes
 
-Run tests against the containerized services:
+- CORS is currently permissive and should be tightened before any public deployment.
+- Auth is MVP-level and should be hardened before exposing the app externally.
+- The current Redis lock is simple and suited to low-contention deployments.
 
-```bash
-# Start services
-docker compose up -d
-
-# Wait for services to be healthy
-docker compose ps
-
-# Run tests against containerized API
-REDIS_URL=redis://localhost:6379/0 pytest tests/
-
-# Cleanup
-docker compose down
-```
+See `doc/CODE_REVIEW.md` and `TODO.md` before treating the current setup as production-ready.

@@ -1,193 +1,120 @@
 # Game Engine
 
-Responsibilities, public API, validation rules, and algorithms for gameplay, including initial meld and rearrangements.
+This document describes the engine that is currently implemented in `src/rummikub/engine/`.
 
 ## Overview
 
-The Game Engine is responsible for enforcing Rummikub game rules and managing game state transitions. It operates on the domain models and provides a high-level API for game operations while ensuring all rules are validated.
+The engine is split across three modules:
 
-## Responsibilities
+- `game_engine.py`: public façade
+- `game_actions.py`: state transitions
+- `game_rules.py`: validation helpers and win checks
 
-### Core Game Management
-- Game initialization (dealing tiles, setting up initial state)
-- Turn management and player rotation
-- Game state validation and consistency
-- Win condition detection
-- Score calculation (when applicable)
+The engine is stateless. Each method accepts a `GameState` and returns a new `GameState`.
 
-### Move Validation and Execution
-- Validate and execute tile placements on the board
-- Initial meld validation (>= 30 points requirement)
-- Ensure all board combinations remain valid after moves
+## Public API
 
-### Rule Enforcement
-- Enforce valid group and run formations
-- Validate tile availability and ownership
-- Ensure players can only act on their turn
-- Enforce initial meld requirement before first play
-
-## Public API Contracts
-
-### Game Lifecycle
+### Lifecycle
 
 ```python
-class GameEngine:
-    def create_game(self, num_players: int) -> GameState:
-        """Initialize a new game with specified number of players (2-4). Auto-generates UUID."""
-    
-    def join_game(self, game_state: GameState, player_name: str) -> GameState:
-        """Join a player to the game and deal tiles from pool."""
-    
-    def get_game_status(self, game_state: GameState) -> GameStatus:
-        """Get current game status (waiting_for_players, in_progress, completed)."""
+GameEngine.create_game(num_players: int) -> GameState
+GameEngine.join_game(game_state: GameState, player_name: str) -> GameState
+GameEngine.start_game(game_state: GameState) -> GameState
+GameEngine.get_game_status(game_state: GameState) -> GameStatus
 ```
 
-### Turn Management
+Behavior:
+- `create_game()` delegates to `GameState.create_initialized_game()`.
+- `join_game()` assigns the supplied name to the first unjoined player slot.
+- When all slots are joined, `join_game()` auto-starts the game.
+- `start_game()` still exists, but the API flow relies on auto-start rather than manual start.
+
+### Turn And Actions
 
 ```python
-    def get_current_player(self, game_state: GameState) -> str:
-        """Get the ID of the player whose turn it is."""
-    
-    def can_player_take_action(self, game_state: GameState, player_id: str) -> bool:
-        """Check if the specified player can take actions."""
-    
-    def advance_turn(self, game_state: GameState) -> GameState:
-        """Move to the next player's turn. Called after successful move or draw."""
-```
-
-### Move Execution
-
-```python
-    def execute_play_action(self, game_state: GameState, player_id: str, action: PlayTilesAction) -> GameState:
-        """
-        Execute tile play action (placement and/or rearrangement). Validates:
-        - Player's turn
-        - Tile ownership
-        - Initial meld requirement (if not met)
-        - All resulting combinations are valid
-        - Board remains in valid state
-        - No tiles are lost or duplicated in rearrangements
-        """
-    
-    def execute_draw_action(self, game_state: GameState, player_id: str) -> GameState:
-        """
-        Draw a tile from the pool. Validates:
-        - Player's turn  
-        - Pool is not empty
-        - Player hasn't already made a move this turn
-        """
+GameEngine.get_current_player(game_state: GameState) -> str
+GameEngine.can_player_act(game_state: GameState, player_id: str) -> bool
+GameEngine.advance_turn(game_state: GameState) -> GameState
+GameEngine.execute_play_action(game_state: GameState, player_id: str, action: PlayTilesAction) -> GameState
+GameEngine.execute_draw_action(game_state: GameState, player_id: str) -> GameState
 ```
 
 ### Validation Helpers
 
 ```python
-    def validate_initial_meld(self, tiles: List[TileInstance], melds: List[Meld]) -> bool:
-        """Check if proposed melds meet initial meld requirement (>= 30 points)."""
-    
-    def check_win_condition(self, game_state: GameState, player_id: str) -> bool:
-        """Check if player has emptied their rack and won."""
+GameEngine.validate_initial_meld(melds: list[Meld]) -> bool
+GameEngine.check_win_condition(game_state: GameState, player_id: str) -> bool
 ```
 
-## State Transitions
+## Game Setup Model
 
-### Game Setup Flow
-1. `create_game()` → GameStatus.WAITING_FOR_PLAYERS
-2. `join_game()` × N → GameStatus.WAITING_FOR_PLAYERS  
-3. `start_game()` (manual start) → GameStatus.IN_PROGRESS
-   - Deal 14 tiles to each player
-   - Initialize turn order
-   - Set current player
+The engine uses pre-dealt player slots.
 
-### Turn Flow
-1. **Player Action Phase:**
-   - `execute_play_action()` OR `execute_draw_action()`
-   - Validate move according to rules
-   - Update game state
-   
-2. **Turn Transition:**
-   - Check win condition
-   - If won → GameStatus.COMPLETED
-   - Else → `advance_turn()` → next player
+1. `create_game(num_players)` builds the full pool.
+2. Fourteen tiles are dealt to every seat immediately.
+3. Players are created with `joined=False` and `name=None`.
+4. Joining a game attaches a name to an existing seat.
+5. When the final seat is joined, the game status becomes `in_progress`.
 
-### Move Validation Sequence
-1. **Pre-move validation:**
-   - Verify player's turn
-   - Check tile ownership
-   - Validate move structure
+This means pool size is already reduced before anyone joins.
 
-2. **Rule-specific validation:**
-   - Initial meld requirement (if applicable)
-   - Combination validity (groups/runs)
+## Play Action Contract
 
-3. **Post-move validation:**
-   - Validate board and rack consistency
-   - No tiles lost/duplicated
-   - Game state consistency
+`PlayTilesAction.melds` represents the complete board end-state after the player's move.
 
-## Error Taxonomy
+Current validation pipeline in `GameActions.execute_play_action()`:
 
-### Game State Errors (extend GameStateError)
-- `GameNotFoundError`: Game ID does not exist  
-- `GameFullError`: Attempting to add player to full game
-- `GameNotStartedError`: Attempting gameplay actions before game starts
-- `GameFinishedError`: Attempting actions on completed game
+1. Validate turn ownership.
+2. Load the acting player.
+3. Compute `newly_played_tiles` as submitted-board tiles minus current-board tiles.
+4. Reject empty plays with no newly played tiles.
+5. Validate the player owns the newly played tiles.
+6. Validate every submitted meld.
+7. Validate the initial meld threshold if the player has not met it yet.
+8. Remove newly played tiles from the player's rack.
+9. Replace the board with the submitted meld list.
+10. Check win condition and otherwise advance the turn.
 
-### Turn Management Errors (extend GameStateError)
-- `NotPlayersTurnError`: Player attempting action out of turn
-- `PlayerNotInGameError`: Unknown player attempting action
+## Draw Action Contract
 
-### Move Validation Errors (extend ValidationError)
-- `InitialMeldNotMetError`: First play doesn't meet 30-point requirement
-- `InvalidMoveError`: Generic invalid move (with specific reason)
-- `TileNotOwnedError`: Player doesn't own specified tiles
-- `PoolEmptyError`: Attempting to draw from empty pool
-- `InvalidBoardStateError`: Resulting board state has invalid combinations
+Current draw flow:
 
-*Note: These engine-specific exceptions will be added to `src/rummikub/models/exceptions.py` during implementation.*
+1. Validate turn ownership.
+2. Validate the pool is not empty.
+3. Draw one random tile from the pool.
+4. Add it to the acting player's rack.
+5. Advance the turn.
 
-## Algorithms
+## Rule Enforcement
 
-### Initial Meld Validation
-```
-1. For each proposed meld:
-   a. Calculate meld value (including joker values)
-   b. Sum total value
-2. Return total >= 30
-```
+Implemented rule checks include:
 
-### Board Rearrangement Validation
-```
-1. Extract all tile IDs from current board
-2. Extract all tile IDs from proposed board  
-3. Validate all new tile IDs come from player rack
-4. Validate player rack doesn't have these tiles anymore
-5. Validate each meld in proposed board
-6. Return all validations pass
-```
+- Player turn validation
+- Meld-size checks
+- Meld-content validation through `Meld.validate()`
+- Initial meld total of at least 30 points
+- Draw-from-empty-pool rejection
+- Empty-play rejection
+- Win detection based on an empty rack and `initial_meld_met=True`
 
-### Joker Value Calculation
-```
-For joker in group:
-  - Value = number of the group
-For joker in run:
-  - Value = position-based number in sequence
-For ambiguous cases:
-  - Raise AmbiguousJokerError
-```
+## Exceptions Used By The Engine
 
-### Win Detection
-```
-1. Perform win detection during advance_turn() or just before it's called
-2. Check if player's rack is empty after a successful play action  
-3. If rack is empty, mark player as winner and game as completed
-4. Return updated game state with winner information
-```
+- `GameStateError`
+- `GameNotStartedError`
+- `GameFinishedError`
+- `GameFullError`
+- `NotPlayersTurnError`
+- `PlayerNotInGameError`
+- `InvalidMoveError`
+- `InitialMeldNotMetError`
+- `TileNotOwnedError`
+- `PoolEmptyError`
+- `InvalidBoardStateError`
 
-## Implementation Notes
+## Current Limitations
 
-- Engine is stateless - all state passed as parameters
-- Engine does not persist state - returns updated GameState objects
-- Validation is strict - any rule violation raises appropriate error
-- Thread-safe by design (no shared mutable state)
-- Joker logic handles all edge cases defined in RUMMIKUB_RULES.md
-- Uses existing model validation where possible, adds game-level validation on top
+- The engine does not yet guarantee that a submitted board preserves every previously-board tile.
+- Win paths set `status=completed`, but do not consistently populate `winner_player_id`.
+- `start_game()` checks seat count rather than joined-player count, so it behaves more like an escape hatch than the public lifecycle path.
+
+See `doc/CODE_REVIEW.md` for priority and remediation notes.
