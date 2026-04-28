@@ -51,7 +51,24 @@ const Utils = {
             element = document.getElementById(element);
         }
         if (element) {
-            element.textContent = message;
+            // Clear existing content
+            element.innerHTML = '';
+            
+            // Create message span
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            messageSpan.className = 'error-message';
+            
+            // Create close button
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '×';
+            closeBtn.className = 'error-close';
+            closeBtn.setAttribute('aria-label', 'Close error');
+            closeBtn.onclick = () => this.hideError(element);
+            
+            // Append elements
+            element.appendChild(messageSpan);
+            element.appendChild(closeBtn);
             element.style.display = 'block';
         }
     },

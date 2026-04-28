@@ -285,10 +285,45 @@ header h1 {
     background-color: #ffebee;
     color: #c62828;
     padding: 15px;
+    padding-right: 45px;
     border-radius: 6px;
     border: 1px solid #ef5350;
     margin: 20px 0;
     text-align: center;
+    position: relative;
+}
+
+.error-message {
+    display: block;
+}
+
+.error-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #c62828;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    line-height: 1;
+}
+
+.error-close:hover {
+    background-color: rgba(198, 40, 40, 0.1);
+}
+
+.error-close:active {
+    background-color: rgba(198, 40, 40, 0.2);
 }
 
 /* Winner page styles */
@@ -507,15 +542,6 @@ header h1 {
     color: #ecf0f1;
     padding: 40px;
     font-size: 16px;
-}
-
-.error {
-    background-color: #e74c3c;
-    color: white;
-    padding: 15px;
-    border-radius: 6px;
-    margin: 20px 0;
-    text-align: center;
 }
 
 /* Responsive design for home page */
